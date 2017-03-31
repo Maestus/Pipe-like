@@ -7,6 +7,10 @@ struct conduct{
   size_t capacity;
   size_t atomic;
   int is_anon;
+  char *buffer;
+  int remplissage;
+  int ecriture;
+  int lecture;
 };
 
 struct conduct *conduct_create(const char *name, size_t a, size_t c);
@@ -16,3 +20,4 @@ ssize_t conduct_write(struct conduct *c, const void *buf, size_t count);
 int conduct_write_eof(struct conduct *c);
 void conduct_close(struct conduct *conduct);
 void conduct_destroy(struct conduct *conduct);
+const char * generate_name();
