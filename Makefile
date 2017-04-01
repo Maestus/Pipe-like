@@ -20,3 +20,4 @@ clean:
 	rm main2
 	rm *.o
 	rm *.gch
+	find . -maxdepth 1 -type f  ! -name "*.*" ! -name "Makefile" -delete

@@ -22,18 +22,31 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
   struct conduct * conduit;
 
   if ( name != NULL) {
+    if( access( name, F_OK ) != -1 ) {
+      char choice;
+      printf("[WARNING] File already exist, Do you want to remove it ? [Y/N] : ");
+      choice = getchar();
+      if(choice == 'Y') {
+        if(unlink(name) == -1){
+          printf("Failed to delete file : %s\n", strerror(errno));
+        }
+      } else {
+        return NULL;
+      }
+    }
+
     if((fd = open(name, O_CREAT | O_RDWR, 0666)) == -1){
-        printf("shm_open : failed in main");
+        printf("open : failed in main");
         return NULL;
     }
 
-    if (ftruncate(fd, sizeof(struct conduct)) == -1){
+    if (ftruncate(fd, 2*getpagesize()) == -1){
       printf("ftruncate failed : %s\n", strerror(errno));
       return NULL;
     }
 
     if ((conduit = mmap(NULL, sizeof(struct conduct), PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0)) ==  (void *) -1){
-      printf("mmap failed : %s\n", strerror(errno));
+      printf("1° : mmap failed : %s\n", strerror(errno));
       return NULL;
     }
 
@@ -42,11 +55,10 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
     conduit->name = malloc(15*sizeof(char));
     strcpy(conduit->name, name);
     conduit->capacity = c;
-    if((conduit->buffer = mmap(conduit + 1, conduit->capacity*sizeof(char), PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0)) == (void *) -1){
-      printf("mmap failed : %s\n", strerror(errno));
+    if((conduit->buffer = mmap(NULL, conduit->capacity*sizeof(char), PROT_WRITE | PROT_READ, MAP_SHARED, fd, getpagesize())) == (void *) -1){
+      printf("2° : mmap failed : %s\n", strerror(errno));
       return NULL;
     }
-
   } else {
 
     if((fd = shm_open(generate_name(), O_CREAT | O_RDWR, 0666)) == -1){
@@ -69,7 +81,10 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
     conduit->name = malloc(15*sizeof(char));
     strcpy(conduit->name, name);
     conduit->capacity = c;
-    conduit->buffer = mmap(conduit + 1, conduit->capacity*sizeof(char), PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
+    if((conduit->buffer = mmap(NULL, conduit->capacity*sizeof(char), PROT_WRITE | PROT_READ, MAP_SHARED, fd, getpagesize())) == (void *) -1){
+      printf("2° : mmap failed : %s\n", strerror(errno));
+      return NULL;
+    }
   }
   conduit->atomic = a;
   conduit->lecture = 0;
@@ -92,7 +107,10 @@ struct conduct *conduct_open(const char *name){
     return NULL;
   }
 
-  conduit->buffer = mmap(conduit + 1, conduit->capacity*sizeof(char), PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
+  if((conduit->buffer = mmap(NULL, conduit->capacity*sizeof(char), PROT_WRITE | PROT_READ, MAP_SHARED, fd, getpagesize())) == (void *) -1){
+    printf("2° : mmap failed : %s\n", strerror(errno));
+    return NULL;
+  }
 
   return conduit;
 }
@@ -100,7 +118,8 @@ struct conduct *conduct_open(const char *name){
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
   while(conduit->lecture == conduit->ecriture) {}
   if(conduit->lecture < conduit->capacity){
-    for (size_t i = 0; i < count; i++) {
+    printf("%d\n", conduit->ecriture);
+    for (size_t i = conduit->lecture; i < conduit->lecture+count; i++) {
       printf("%c", conduit->buffer[i]);
     }
     printf("\n");
@@ -130,9 +149,10 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
     return 0;
   } else {
     strncat(conduit->buffer, buff, 22);
-    printf("%s\n", conduit->buffer);
     conduit->ecriture += count;
-    conduct_close(conduit);
+    //char * buff;
+    //buff = malloc(22*sizeof(char));
+    //conduct_read(conduit, buff, 22);
     return count;
   }
 }

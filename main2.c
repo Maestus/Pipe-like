@@ -11,5 +11,8 @@
 int main(int argc, char const *argv[]) {
   struct conduct * conduit = conduct_open("ame");
   conduct_write(conduit, "la vie est trop courte", 22);
+  char * buffer;
+  buffer = malloc(22*sizeof(char));
+  conduct_read(conduit, buffer, 22);
   return 0;
 }
