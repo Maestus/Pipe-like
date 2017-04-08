@@ -9,12 +9,9 @@
 #include <unistd.h>
 
 int main(int argc, char const *argv[]) {
-  struct conduct * conduit = conduct_create("ame", 10, 100);
-  printf("Le nom : %s\n", conduit->name);
-  char * buffer;
-  buffer = malloc(22*sizeof(char));
-  conduct_write(conduit, "la vie est trop longue", 22);
-  while(1)
-    conduct_read(conduit, buffer, 22);
+  struct conduct * conduit = conduct_create("file", 10, 1000);
+  printf("[Le nom] : %s\n", conduit->name);
+  char * buff = malloc(22*sizeof(char));
+  conduct_read(conduit, buff, 22);
   return 0;
 }
