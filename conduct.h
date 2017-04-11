@@ -8,13 +8,17 @@
 #include <pthread.h>
 #include <unistd.h>
 
+
 struct conduct{
-  char name[15];
-  size_t capacity;
-  size_t atomic;
-  int remplissage;
-  int lecture;
-  char buffer_begin;
+    char name[15];
+    size_t capacity;
+    size_t atomic;
+    int remplissage;
+    int ecriture;
+    int lecture;
+    pthread_mutex_t *mutex;
+    pthread_cond_t *cond;
+    char buffer_begin;
 };
 
 struct conduct *conduct_create(const char *name, size_t a, size_t c);
