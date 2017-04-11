@@ -1,13 +1,11 @@
 #include <stdlib.h>
 
-struct conduct;
-
 struct conduct{
-  char * name;
+  char name[15];
   size_t capacity;
   size_t atomic;
   int is_anon;
-  char *buffer;
+  char buffer_begin;
   int remplissage;
   int ecriture;
   int lecture;
@@ -20,4 +18,4 @@ ssize_t conduct_write(struct conduct *c, const void *buf, size_t count);
 int conduct_write_eof(struct conduct *c);
 void conduct_close(struct conduct *conduct);
 void conduct_destroy(struct conduct *conduct);
-const char * generate_name();
+const char * generate_name(const char *);
