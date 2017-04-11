@@ -1,13 +1,4 @@
 #include "conduct.h"
-#include <stdio.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <stdint.h>
 
 struct conduct *conduct_create(const char *name, size_t a, size_t c){
   int fd_cond;
@@ -25,7 +16,7 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
     }
 
 
-    if (ftruncate(fd_cond, sizeof(struct conduct)) == -1){
+    if (ftruncate(fd_cond, sizeof(struct conduct)+c) == -1){
       printf("ftruncate failed : %s\n", strerror(errno));
       return NULL;
     }
@@ -36,10 +27,9 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
     }
 
     conduit->buffer_begin = sizeof(struct conduct) + 1;
-    conduit->is_anon = 0;
-
     strncpy(conduit->name, name, 15);
     conduit->capacity = c;
+
 
   } else {
     /*
@@ -50,9 +40,7 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
   }
   conduit->atomic = a;
   conduit->lecture = 0;
-  conduit->ecriture = 0;
   conduit->remplissage = 0;
-
 
   return conduit;
 }
@@ -66,24 +54,27 @@ struct conduct *conduct_open(const char *name){
       return NULL;
   }
 
-  struct stat fileInfo = {0};
-
-    if (fstat(fd, &fileInfo) == -1)
-    {
-        perror("Error getting the file size");
-        exit(EXIT_FAILURE);
-    }
-
-    if (fileInfo.st_size == 0)
-    {
-        fprintf(stderr, "Error: File is empty, nothing to do\n");
-        exit(EXIT_FAILURE);
-    }
-
-  if ((conduit =(struct conduct *) mmap(NULL, sizeof(struct conduct), PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0)) ==  (void *) -1){
+  if ((conduit =(struct conduct *) mmap(NULL, sizeof(struct conduct), PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0)) ==  MAP_FAILED){
     printf("mmap failed : %s\n", strerror(errno));
     return NULL;
   }
+
+  int capacity = conduit->capacity;
+
+  printf("=%d\n", conduit->remplissage);
+
+
+  if(munmap(conduit, sizeof(struct conduct)) == -1){
+    printf("munmap failed : %s\n", strerror(errno));
+    return NULL;
+  }
+
+  if ((conduit =(struct conduct *) mmap(NULL, sizeof(struct conduct)+capacity, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0)) ==  MAP_FAILED){
+    printf("mmap failed : %s\n", strerror(errno));
+    return NULL;
+  }
+
+  printf("=%d\n", conduit->remplissage);
 
   return conduit;
 }
@@ -102,29 +93,28 @@ void conduct_destruct(struct conduct * conduit){
   munmap(conduit, sizeof(conduit));
 }
 
-
-
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
-  while(conduit->lecture == conduit->ecriture) {}
-  if(conduit->lecture < conduit->capacity){
-    for (size_t i = conduit->lecture; i < count; i++) {
-      printf("%c",  (&(conduit->buffer_begin)+conduit->lecture)[i]);
-    }
-    printf("\n");
-    /*strncat(buff, (char *) (conduit->buffer_begin+conduit->lecture), count);*/
-    conduit->lecture += count;
-    printf("%d : end\n", conduit->lecture);
+  int lect = ((conduit->remplissage < (int)count) ? conduit->remplissage : (int)count);
+  //printf("%d ~~~~ %zu\n", conduit->remplissage, count);
+  //printf("~~~ %d ~~~\n", lect);
+  /*for (size_t i = 0; i < lect; i++) {
+    printf("[%c]", (&(conduit->buffer_begin)+conduit->lecture)[i]);
   }
+  printf("\n");*/
+  strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
+  conduit->lecture += lect;
+  conduit->remplissage -= lect;
+  //printf("%d : end\n", conduit->lecture);
   return count;
 }
 
 ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count){
-  if(conduit->ecriture == conduit->capacity){
+  if(conduit->remplissage == conduit->capacity){
     printf("Plein\n");
     return 0;
   } else {
-    strncpy((&conduit->buffer_begin)+conduit->ecriture, buff, count);
-    conduit->ecriture += count;
+    memcpy(&(conduit->buffer_begin), buff, count);
+    conduit->remplissage += count;
     return count;
   }
 }

@@ -1,14 +1,20 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <pthread.h>
+#include <unistd.h>
 
 struct conduct{
   char name[15];
   size_t capacity;
   size_t atomic;
-  int is_anon;
-  char buffer_begin;
   int remplissage;
-  int ecriture;
   int lecture;
+  char buffer_begin;
 };
 
 struct conduct *conduct_create(const char *name, size_t a, size_t c);

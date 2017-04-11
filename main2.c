@@ -14,7 +14,8 @@ int main(int argc, char const *argv[]) {
   //conduct_read(conduit, buff, 6);
   //while(1){}
   //strncat(buff, conduit->buffer, 6);
-  conduct_write(conduit, "olé",3);
+  //printf("=%d\n", conduit->remplissage);
+  conduct_write(conduit, "olelleh",7);
   //conduct_write(conduit, "la vie est trop courte", 22);
   // Write it now to disk
   /*if (msync(conduit->buffer, conduit->capacity, MS_SYNC) == -1)
