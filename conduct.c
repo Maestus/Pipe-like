@@ -3,7 +3,7 @@
 
 struct conduct *conduct_create(const char *name, size_t a, size_t c){
     struct conduct * conduit = NULL;
-    
+    unlink(name);
     if ( name != NULL) {
         int fd_cond;
         if( access( name, F_OK ) != -1 ){
@@ -100,16 +100,13 @@ void conduct_destruct(struct conduct * conduit){
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
     
     pthread_mutex_lock(&conduit->mutex);
-    while(conduit->lecture > conduit->remplissage) {pthread_cond_wait(&conduit->cond,&conduit->mutex);}
+    while(conduit->lecture >= conduit->remplissage) {pthread_cond_wait(&conduit->cond,&conduit->mutex);}
     
-    int lect = ((conduit->remplissage < (int)count) ? conduit->remplissage : (int)count);
+    int lect = ((conduit->remplissage < count) ? conduit->remplissage : count);
     strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
     conduit->lecture += lect;
-    conduit->remplissage -= lect;
-    
-    
     pthread_mutex_unlock(&conduit->mutex);
-    return count;
+    return lect;
 }
 
 ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count){
@@ -120,9 +117,8 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
         pthread_mutex_lock(&conduit->mutex);
         memcpy(&(conduit->buffer_begin), buff, count);
         conduit->remplissage += count;
-        conduit->lecture -= count;
         pthread_mutex_unlock(&conduit->mutex);
-        pthread_cond_signal(&conduit->cond);
+        pthread_cond_broadcast(&conduit->cond);
         return count;
     }
 }

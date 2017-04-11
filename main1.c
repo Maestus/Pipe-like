@@ -12,7 +12,7 @@ int main(int argc, char const *argv[]) {
   struct conduct * conduit = conduct_create("file", 10, 1000);
   printf("[Le nom] : %s\n", conduit->name);
   // char * buff = malloc(22*sizeof(char));
-  conduct_write(conduit, "aaaaaa", 6);
+  conduct_write(conduit, "abcdef", 6);
   // conduct_read(conduit, buff, 22);
   while(1){
     printf("=%d\n", conduit->remplissage);
