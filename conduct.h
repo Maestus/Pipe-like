@@ -16,8 +16,8 @@ struct conduct{
     int remplissage;
     int ecriture;
     int lecture;
-    pthread_mutex_t *mutex;
-    pthread_cond_t *cond;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
 };
 
 struct conduct *conduct_create(const char *name, size_t a, size_t c);

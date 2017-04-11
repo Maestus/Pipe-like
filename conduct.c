@@ -39,8 +39,7 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
          
          */
     }
-    pthread_mutex_init(conduit->mutex,NULL);
-    
+    pthread_mutex_init(&((&conduit->mutex)),NULL);
     conduit->atomic = a;
     conduit->lecture = 0;
     conduit->ecriture = 0;
@@ -91,14 +90,14 @@ int conduct_write_eof(struct conduct *c){
 void conduct_destruct(struct conduct * conduit){
     msync(conduit, sizeof(conduit), MS_SYNC);
     munmap(conduit, sizeof(conduit));
-    pthread_mutex_destroy(conduit->mutex);
+    pthread_mutex_destroy((&conduit->mutex));
 }
 
 
 
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
-    pthread_mutex_lock(conduit->mutex);
-    while(conduit->lecture == conduit->ecriture) {pthread_cond_wait(conduit->cond,conduit->mutex);}
+    pthread_mutex_lock((&conduit->mutex));
+    while(conduit->lecture == conduit->ecriture) {pthread_cond_wait((&conduit->cond),(&conduit->mutex));}
     if(conduit->lecture < conduit->capacity){
         for (size_t i = conduit->lecture; i < count; i++) {
             printf("%c",  (&(conduit->buffer_begin)+conduit->lecture)[i]);
@@ -108,7 +107,7 @@ ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
         conduit->lecture += count;
         printf("%d : end\n", conduit->lecture);
     }
-    pthread_mutex_unlock(conduit->mutex);
+    pthread_mutex_unlock((&conduit->mutex));
     return count;
 }
 
@@ -117,11 +116,11 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
         printf("Plein\n");
         return 0;
     } else {
-        pthread_mutex_lock(conduit->mutex);
+        pthread_mutex_lock((&conduit->mutex));
         strncpy((&conduit->buffer_begin)+conduit->ecriture, buff, count);
         conduit->ecriture += count;
-        pthread_mutex_unlock(conduit->mutex);
-        pthread_cond_signal(conduit->cond);
+        pthread_mutex_unlock((&conduit->mutex));
+        pthread_cond_signal((&conduit->cond));
         return count;
     }
 
