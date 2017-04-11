@@ -29,7 +29,15 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
         
         strncpy(conduit->name, name, 15);
         conduit->capacity = c;
-        pthread_mutex_init(&conduit->mutex,NULL);
+        pthread_mutexattr_t mutShared;
+        pthread_condattr_t condShared;
+        pthread_mutexattr_init(&mutShared);
+        pthread_mutexattr_setpshared(&mutShared,PTHREAD_PROCESS_SHARED);
+        pthread_condattr_init(&condShared);
+        pthread_condattr_setpshared(&condShared,
+                                           PTHREAD_PROCESS_SHARED);
+        pthread_mutex_init(&conduit->mutex,&mutShared);
+        pthread_cond_init(&conduit->cond,&condShared);
         conduit->atomic = a;
         conduit->lecture = 0;
         conduit->remplissage = 0;
@@ -100,9 +108,9 @@ void conduct_destruct(struct conduct * conduit){
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
     
     pthread_mutex_lock(&conduit->mutex);
-    while(conduit->lecture >= conduit->remplissage) {pthread_cond_wait(&conduit->cond,&conduit->mutex);}
+    while(conduit->lecture >= conduit->remplissage) {printf("attend\n");pthread_cond_wait(&conduit->cond,&conduit->mutex);}
     
-    int lect = ((conduit->remplissage < count) ? conduit->remplissage : count);
+    int lect = ((conduit->remplissage-conduit->lecture < count) ? conduit->remplissage-conduit->lecture : count);
     strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
     conduit->lecture += lect;
     pthread_mutex_unlock(&conduit->mutex);
@@ -115,10 +123,10 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
         return 0;
     } else {
         pthread_mutex_lock(&conduit->mutex);
-        memcpy(&(conduit->buffer_begin), buff, count);
+        memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
         conduit->remplissage += count;
-        pthread_mutex_unlock(&conduit->mutex);
         pthread_cond_broadcast(&conduit->cond);
+        pthread_mutex_unlock(&conduit->mutex);
         return count;
     }
 }
