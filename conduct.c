@@ -52,12 +52,29 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
         close(fd_cond);
         
     } else {
-        /*
-         
-         A faire
-         
-         */
+        if((conduit = (struct conduct *) mmap(NULL,sizeof(struct conduct)+c, PROT_WRITE | PROT_READ, MAP_SHARED | MAP_ANONYMOUS, -1, 0)) ==  (void *) -1){
+            printf("1° : mmap failed : %s\n", strerror(errno));
+            return NULL;
+        }
     }
+    /*initializing mutex*/
+    pthread_mutexattr_t mutShared;
+    pthread_condattr_t condShared;
+    pthread_mutexattr_init(&mutShared);
+    pthread_mutexattr_setpshared(&mutShared,PTHREAD_PROCESS_SHARED);
+    pthread_condattr_init(&condShared);
+    pthread_condattr_setpshared(&condShared,
+                                PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&conduit->mutex,&mutShared);
+    pthread_cond_init(&conduit->cond,&condShared);
+    
+    /*intializing offset*/
+    conduit->atomic = a;
+    conduit->lecture = 0;
+    conduit->remplissage = 0;
+    conduit->eof = 0;
+    conduit->buffer_begin = sizeof(struct conduct) + 1;
+    
     return conduit;
 }
 
@@ -113,6 +130,8 @@ void conduct_destruct(struct conduct * conduit){
     msync(conduit, sizeof(conduit), MS_SYNC);
     munmap(conduit, sizeof(conduit));
     pthread_mutex_destroy(&conduit->mutex);
+    unlink(conduit->name);
+
 }
 
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
