@@ -105,6 +105,7 @@ void conduct_close(struct conduct * conduit){
 int conduct_write_eof(struct conduct *conduit){
     pthread_mutex_lock(&conduit->mutex);
     conduit->eof = 1;
+    pthread_cond_broadcast(&conduit->cond);
     pthread_mutex_unlock(&conduit->mutex);
 
     return 1;
@@ -148,6 +149,10 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
         while(conduit->remplissage +count > conduit->capacity){
             printf("attend ecriture %zu",conduit->capacity);
             pthread_cond_wait(&conduit->cond,&conduit->mutex);
+            if(conduit->eof){
+                errno = EPIPE;
+                return -1;
+            }
         }
         memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
         conduit->remplissage += count;
