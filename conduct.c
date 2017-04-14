@@ -133,8 +133,8 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
     int fin,debut;
     while(conduit->remplissage +count > conduit->capacity){
         printf("attend ecriture %zu",conduit->capacity);
-        fin = remplissage+count;
-        debut = remplissage;
+        fin = conduit->remplissage+count;
+        debut = conduit->remplissage;
         pthread_cond_wait(&conduit->cond,&conduit->mutex);
         
     }
