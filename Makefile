@@ -15,8 +15,7 @@ julia:
 	gcc -g -O3 -ffast-math -Wall -pthread `pkg-config --cflags gtk+-3.0` julia.c conduct.c `pkg-config --libs gtk+-3.0` -lm
 
 clean:
-	rm main1
-	rm main2
+	
 	rm *.o
 	rm *.gch
 	rm a.out

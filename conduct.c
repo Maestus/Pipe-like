@@ -29,26 +29,6 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
         }
         
         strncpy(conduit->name, name, 15);
-        conduit->capacity = c;
-        
-        /*initializing mutex*/
-        pthread_mutexattr_t mutShared;
-        pthread_condattr_t condShared;
-        pthread_mutexattr_init(&mutShared);
-        pthread_mutexattr_setpshared(&mutShared,PTHREAD_PROCESS_SHARED);
-        pthread_condattr_init(&condShared);
-        pthread_condattr_setpshared(&condShared,
-                                    PTHREAD_PROCESS_SHARED);
-        pthread_mutex_init(&conduit->mutex,&mutShared);
-        pthread_cond_init(&conduit->cond,&condShared);
-        
-        /*intializing offset*/
-        conduit->atomic = a;
-        conduit->lecture = 0;
-        conduit->remplissage = 0;
-        conduit->eof = 0;
-        conduit->buffer_begin = sizeof(struct conduct) + 1;
-        
         close(fd_cond);
         
     } else {
@@ -57,6 +37,9 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
             return NULL;
         }
     }
+    /*initialize the capacity*/
+    conduit->capacity = c;
+
     /*initializing mutex*/
     pthread_mutexattr_t mutShared;
     pthread_condattr_t condShared;
