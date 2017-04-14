@@ -37,7 +37,8 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
             return NULL;
         }
     }
-    /*Capacity*/
+
+    /*initialize the capacity*/
     conduit->capacity = c;
 
     /*initializing mutex*/
@@ -101,15 +102,20 @@ void conduct_close(struct conduct * conduit){
     munmap(conduit, sizeof(conduit));
 }
 
-int conduct_write_eof(struct conduct *c){
-    c->eof = 1;
-    return 0;
+int conduct_write_eof(struct conduct *conduit){
+    pthread_mutex_lock(&conduit->mutex);
+    conduit->eof = 1;
+    pthread_mutex_unlock(&conduit->mutex);
+
+    return 1;
 }
 
 void conduct_destruct(struct conduct * conduit){
     msync(conduit, sizeof(conduit), MS_SYNC);
     munmap(conduit, sizeof(conduit));
     pthread_mutex_destroy(&conduit->mutex);
+    unlink(conduit->name);
+
 }
 
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
