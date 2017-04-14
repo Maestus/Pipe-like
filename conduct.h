@@ -16,6 +16,7 @@ struct conduct{
     int remplissage;
     int ecriture;
     int lecture;
+    int eof;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     char buffer_begin;

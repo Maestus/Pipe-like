@@ -46,6 +46,7 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
         conduit->atomic = a;
         conduit->lecture = 0;
         conduit->remplissage = 0;
+        conduit->eof = 0;
         conduit->buffer_begin = sizeof(struct conduct) + 1;
         
         close(fd_cond);
@@ -101,6 +102,7 @@ void conduct_close(struct conduct * conduit){
 }
 
 int conduct_write_eof(struct conduct *c){
+    c->eof = 1;
     return 0;
 }
 
@@ -113,6 +115,8 @@ void conduct_destruct(struct conduct * conduit){
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
     
     pthread_mutex_lock(&conduit->mutex);
+    if(conduit->remplissage==conduit->lecture && conduit->eof)
+        return 0;
     while(conduit->lecture >= conduit->remplissage) {printf("attend\n");pthread_cond_wait(&conduit->cond,&conduit->mutex);}
     
     int lect = ((conduit->remplissage-conduit->lecture < count) ? conduit->remplissage-conduit->lecture : count);
@@ -129,19 +133,28 @@ ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
 }
 
 ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count){
-    pthread_mutex_lock(&conduit->mutex);
-    int fin,debut;
-    while(conduit->remplissage +count > conduit->capacity){
-        printf("attend ecriture %zu",conduit->capacity);
-        fin = conduit->remplissage+count;
-        debut = conduit->remplissage;
-        pthread_cond_wait(&conduit->cond,&conduit->mutex);
-        
+    if(conduit->eof){
+        errno = EPIPE;
+        return -1;
     }
-    conduit->remplissage = fin;
-    memcpy(&(conduit->buffer_begin)+debut, buff, count);
-    pthread_cond_broadcast(&conduit->cond);
+    pthread_mutex_lock(&conduit->mutex);
+    if(count < conduit->atomic ){
+        while(conduit->remplissage +count > conduit->capacity){
+            printf("attend ecriture %zu",conduit->capacity);
+            pthread_cond_wait(&conduit->cond,&conduit->mutex);
+        }
+        memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
+        conduit->remplissage += count;
+        pthread_cond_broadcast(&conduit->cond);
+    }
+    else{
+        if(conduit->remplissage+count > conduit->capacity){
+            count = conduit->capacity-count;
+        }
+        memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
+        conduit->remplissage += count;
+    }
     pthread_mutex_unlock(&conduit->mutex);
     return count;
-    
+
 }
