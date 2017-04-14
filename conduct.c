@@ -150,6 +150,7 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
             printf("attend ecriture %zu",conduit->capacity);
             pthread_cond_wait(&conduit->cond,&conduit->mutex);
             if(conduit->eof){
+                pthread_mutex_unlock(&conduit->mutex);
                 errno = EPIPE;
                 return -1;
             }
