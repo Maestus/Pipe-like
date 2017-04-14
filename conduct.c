@@ -22,6 +22,7 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
             return NULL;
         }
         
+        /*map the conduct with the file */
         if ((conduit = (struct conduct *) mmap(NULL, sizeof(struct conduct)+c, PROT_WRITE | PROT_READ, MAP_SHARED, fd_cond, 0)) ==  (void *) -1){
             printf("1° : mmap failed : %s\n", strerror(errno));
             return NULL;
@@ -29,15 +30,19 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
         
         strncpy(conduit->name, name, 15);
         conduit->capacity = c;
+        
+        /*initializing mutex*/
         pthread_mutexattr_t mutShared;
         pthread_condattr_t condShared;
         pthread_mutexattr_init(&mutShared);
         pthread_mutexattr_setpshared(&mutShared,PTHREAD_PROCESS_SHARED);
         pthread_condattr_init(&condShared);
         pthread_condattr_setpshared(&condShared,
-                                           PTHREAD_PROCESS_SHARED);
+                                    PTHREAD_PROCESS_SHARED);
         pthread_mutex_init(&conduit->mutex,&mutShared);
         pthread_cond_init(&conduit->cond,&condShared);
+        
+        /*intializing offset*/
         conduit->atomic = a;
         conduit->lecture = 0;
         conduit->remplissage = 0;
@@ -113,20 +118,26 @@ ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
     int lect = ((conduit->remplissage-conduit->lecture < count) ? conduit->remplissage-conduit->lecture : count);
     strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
     conduit->lecture += lect;
+    if(conduit->lecture==conduit->capacity || (conduit->lecture==conduit->remplissage && conduit->lecture > conduit->capacity- conduit->atomic)){
+        conduit->lecture = 0;
+        conduit->remplissage=0;
+        printf("avertit depassement\n");
+        pthread_cond_broadcast(&conduit->cond);
+    }
     pthread_mutex_unlock(&conduit->mutex);
     return lect;
 }
 
 ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count){
-    if(conduit->remplissage == conduit->capacity){
-        printf("Plein\n");
-        return 0;
-    } else {
-        pthread_mutex_lock(&conduit->mutex);
-        memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
-        conduit->remplissage += count;
-        pthread_cond_broadcast(&conduit->cond);
-        pthread_mutex_unlock(&conduit->mutex);
-        return count;
+    pthread_mutex_lock(&conduit->mutex);
+    while(conduit->remplissage +count > conduit->capacity){
+        printf("attend ecriture %zu",conduit->capacity);
+        pthread_cond_wait(&conduit->cond,&conduit->mutex);
     }
+    memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
+    conduit->remplissage += count;
+    pthread_cond_broadcast(&conduit->cond);
+    pthread_mutex_unlock(&conduit->mutex);
+    return count;
+    
 }

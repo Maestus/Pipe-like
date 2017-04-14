@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 int main(int argc, char const *argv[]) {
-  struct conduct * conduit = conduct_create("file", 10, 1000);
+  struct conduct * conduit = conduct_create("file", 10, 20);
   printf("[Le nom] : %s\n", conduit->name);
   conduct_write(conduit, "abcdef", 6);
   while(1){
