@@ -110,7 +110,7 @@ ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
     if(conduit->eof)
         return 0;
 
-    int lect;
+    int lecture = 0;
 
     while(conduit->lecture == conduit->remplissage) {
         printf("Attente...\n");
@@ -122,37 +122,44 @@ ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
         }
     }
 
-    if((conduit->lecture+count)%conduit->capacity <= conduit->remplissage){
-        if (conduit->remplissage > conduit->lecture){
-            lect = (conduit->lecture+count)%conduit->capacity;
-            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
-            conduit->lecture += lect;
-        } else {
-            lect = conduit->capacity - conduit->lecture;
-            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
-            int lecture2 = count - lect;
+
+    if(conduit->lecture > conduit->remplissage){
+        if((conduit->lecture+count) > conduit->capacity){
+            int lecture_1 = conduit->capacity - conduit->lecture;
+            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lecture_1);
             conduit->lecture = 0;
-            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lecture2);
-            conduit->lecture = lecture2;
+            int lecture_2 = count - lecture_1;
+            if(lecture_2 > conduit->remplissage){
+                int lecture_partielle = conduit->remplissage;
+                strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lecture_partielle);
+                conduit->lecture = lecture_partielle;
+                lecture = lecture_partielle + lecture_1;
+            } else {
+                strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lecture_2);
+                conduit->lecture = lecture_2;
+                lecture = lecture_2 + lecture_1;
+            }
+        } else {
+            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), count);
+            conduit->lecture += count;
+            lecture = count;
         }
     } else {
-        if (conduit->remplissage > conduit->lecture){
-            lect = conduit->remplissage-conduit->lecture;
-            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
-            conduit->lecture += lect;
+        if((conduit->lecture+count) > conduit->remplissage){
+            int lecture_partielle = conduit->remplissage - conduit->lecture;
+            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lecture_partielle);
+            conduit->lecture += lecture_partielle;
+            lecture = lecture_partielle;
         } else {
-            lect = conduit->capacity - conduit->lecture;
-            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
-            conduit->lecture = 0;
-            lect = conduit->remplissage;
-            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect);
-            conduit->lecture = lect;
+            strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), count);
+            conduit->lecture += count;
+            lecture = count;
         }
     }
 
     pthread_cond_broadcast(&conduit->cond);
     pthread_mutex_unlock(&conduit->mutex);
-    return lect;
+    return lecture;
 }
 
 
@@ -172,7 +179,7 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
         } else {
             if((count <= conduit->atomic)){
                 while((conduit->remplissage + count)%conduit->capacity >= conduit->lecture){
-                    printf("attend ecriture %zu",conduit->capacity);
+                    printf("Attente Ecriture ... %zu\n",conduit->capacity);
                     pthread_cond_wait(&conduit->cond,&conduit->mutex);
                     if(conduit->eof){
                         pthread_mutex_unlock(&conduit->mutex);
@@ -190,14 +197,18 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
             }
         }
 
-    } else if(conduit->remplissage > conduit->lecture) { // on est apres la tete de lecture
-        if ((conduit->remplissage+count)%conduit->capacity < (conduit->lecture)){ //ecriture ne depasse pas
+    } else if(conduit->remplissage >= conduit->lecture) { // on est apres la tete de lecture
+        if((conduit->remplissage+count) < conduit->capacity) {
+            strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
+            conduit->remplissage += count;
+            ecriture = count;
+        } else if ((conduit->remplissage+count)%conduit->capacity < (conduit->lecture)) { //ecriture ne depasse pas
             if(conduit->remplissage+count > conduit->capacity){ // ecrire en fin puis au debut du tube
                 int part_1 = conduit->capacity-conduit->remplissage;
                 strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, part_1);
                 conduit->remplissage = 0;
                 int part_2 = count - part_1;
-                strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, part_2);
+                strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, part_2);
                 conduit->remplissage = part_2;
                 ecriture = part_1 + part_2;
             } else { // ecrire au debut
@@ -208,7 +219,7 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
         } else { // ecriture depasse
             if((count <= conduit->atomic)){
                 while((conduit->remplissage + count)%conduit->capacity >= conduit->lecture){
-                    printf("attend ecriture %zu",conduit->capacity);
+                    printf("Attente Ecriture ... %zu\n",conduit->capacity);
                     pthread_cond_wait(&conduit->cond,&conduit->mutex);
                     if(conduit->eof){
                         pthread_mutex_unlock(&conduit->mutex);
@@ -226,11 +237,11 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
                 int part_2 = count - part_1;
                 if(part_2 >= conduit->lecture){
                     int partition = conduit->lecture - 1;
-                    strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, partition);
+                    strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, partition);
                     conduit->remplissage = partition;
                     ecriture = part_1 + partition;
                 } else {
-                    strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, part_2);
+                    strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, part_2);
                     conduit->remplissage = part_2;
                     ecriture = part_1 + part_2;
                 }
