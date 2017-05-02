@@ -10,7 +10,7 @@
 
 
 struct conduct{
-    char name[15];
+    char name[64];
     size_t capacity;
     size_t atomic;
     int remplissage;
