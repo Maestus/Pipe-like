@@ -202,21 +202,7 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
             strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
             conduit->remplissage += count;
             ecriture = count;
-        } else if ((conduit->remplissage+count)%conduit->capacity < (conduit->lecture)) { //ecriture ne depasse pas
-            if(conduit->remplissage+count > conduit->capacity){ // ecrire en fin puis au debut du tube
-                int part_1 = conduit->capacity-conduit->remplissage;
-                strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, part_1);
-                conduit->remplissage = 0;
-                int part_2 = count - part_1;
-                strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, part_2);
-                conduit->remplissage = part_2;
-                ecriture = part_1 + part_2;
-            } else { // ecrire au debut
-                strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
-                conduit->remplissage += count;
-                ecriture = count;
-            }
-        } else { // ecriture depasse
+        } else if (count > ((conduit->capacity - conduit->remplissage)+(conduit->lecture))) { //ecriture depasse
             if((count <= conduit->atomic)){
                 while((conduit->remplissage + count)%conduit->capacity >= conduit->lecture){
                     printf("Attente Ecriture ... %zu\n",conduit->capacity);
@@ -233,18 +219,38 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
             } else {
                 int part_1 = conduit->capacity-conduit->remplissage;
                 strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, part_1);
+                    if(conduit->lecture > 0){
+                        conduit->remplissage = 0;
+                        int part_2 = count - part_1;
+                        if(part_2 >= conduit->lecture){
+                            int partition = conduit->lecture - 1;
+                            strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, partition);
+                            conduit->remplissage = partition;
+                            ecriture = part_1 + partition;
+                        } else {
+                            strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, part_2);
+                            conduit->remplissage = part_2;
+                            ecriture = part_1 + part_2;
+                        }
+                    } else {
+                            printf("la normalement aussi %d\n", part_1);
+                            conduit->remplissage += part_1;
+                            ecriture = part_1;
+                    }
+            }
+        } else { //depasse pas
+            if(conduit->remplissage+count > conduit->capacity){ // ecrire en fin puis au debut du tube
+                int part_1 = conduit->capacity-conduit->remplissage;
+                strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, part_1);
                 conduit->remplissage = 0;
                 int part_2 = count - part_1;
-                if(part_2 >= conduit->lecture){
-                    int partition = conduit->lecture - 1;
-                    strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, partition);
-                    conduit->remplissage = partition;
-                    ecriture = part_1 + partition;
-                } else {
-                    strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, part_2);
-                    conduit->remplissage = part_2;
-                    ecriture = part_1 + part_2;
-                }
+                strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff+part_1, part_2);
+                conduit->remplissage = part_2;
+                ecriture = part_1 + part_2;
+            } else { // ecrire au debut
+                strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff, count);
+                conduit->remplissage += count;
+                ecriture = count;
             }
         }
     }
