@@ -1,9 +1,12 @@
 all:
 	make conduct
+	make main1
+	make main2
+	make main3
 	make julia
 
 conduct: conduct.h conduct.c
-	gcc -Wall -c conduct.h conduct.c -c
+	gcc -g -Wall -c conduct.h conduct.c -c
 
 main1: main1.c conduct.o
 	gcc -Wall main1.c conduct.o -o main1 -pthread
