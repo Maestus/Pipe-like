@@ -145,17 +145,17 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
     }
     int totLect = min(lect_cap,count);
     if(conduit->loop==0 || ((conduit->lecture+totLect) <= conduit->capacity)){
-        strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
+        memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
         conduit->lecture += totLect;
     }
     else{
-        int lect1 = conduit->capacity-totLect;
-        
-        strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
+        int lect1 = conduit->capacity-conduit->lecture;
+        if(lect1 !=0)
+	  memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
         conduit->loop=0;
         int lect2 = totLect-lect1;
         
-        strncat(buff, (&(conduit->buffer_begin)), lect2);
+        memcpy(buff+lect1, (&(conduit->buffer_begin)), lect2);
         conduit->lecture = lect2;
     }
     pthread_cond_broadcast(&conduit->cond);
@@ -196,11 +196,10 @@ ssize_t conduct_write(struct conduct *conduit,const void* buff,size_t count){
     if((totEcr+conduit->remplissage) <= conduit->capacity){
         memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,totEcr);
         conduit->remplissage +=totEcr;
-        // printf("totEcr %d\n",totEcr);
     }
     else{
         printf("depassement\n");
-        int ecr1 = conduit->capacity - totEcr;
+        int ecr1 = conduit->capacity - conduit->remplissage;
         if(ecr1 !=0)
             memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,ecr1);
         int ecr2 = totEcr-ecr1;

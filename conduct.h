@@ -18,8 +18,7 @@ struct conduct{
     int eof;
     int loop;
     pthread_mutex_t mutex;
-    pthread_cond_t cond_w;
-    pthread_cond_t cond_r;
+    pthread_cond_t cond;
     char buffer_begin;
 };
 
