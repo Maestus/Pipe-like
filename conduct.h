@@ -10,13 +10,13 @@
 
 
 struct conduct{
-    char name[15];
+    char name[64];
     size_t capacity;
     size_t atomic;
     int remplissage;
-    int ecriture;
     int lecture;
     int eof;
+    int loop;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     char buffer_begin;
