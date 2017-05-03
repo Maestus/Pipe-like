@@ -79,8 +79,8 @@ julia_thread(void *arg)
         struct julia_request req;
         struct julia_reply rep;
         int rc;
-
         rc = conduct_read(cons.one, &req, sizeof(req));
+
         if(rc <= 0) {
             conduct_write_eof(cons.two);
             return NULL;
@@ -92,7 +92,9 @@ julia_thread(void *arg)
             rep.data[i] = julia(toc(req.x + i, rep.y), julia_c);
         }
         rc = conduct_write(cons.two, &rep, sizeof(rep));
+
         if(rc < 0) {
+            printf("in rc2\n");
             conduct_write_eof(cons.two);
             return NULL;
         }
@@ -315,15 +317,15 @@ int main(int argc, char **argv)
         /* On se synchronise à l'aide des conduits, pas besoin de join. */
         pthread_detach(t);
     }
-
+    printf("ici\n");
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
     g_signal_connect(canvas, "draw", G_CALLBACK(draw_callback), &cons);
     g_signal_connect(window, "button_press_event",
                      G_CALLBACK(button_callback), NULL);
     set_title();
     gtk_widget_show_all(window);
-
+    
     gtk_main();
-
+    printf("ici2\n");
     return 0;
 }
