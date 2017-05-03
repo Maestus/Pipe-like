@@ -105,6 +105,102 @@ void conduct_destruct(struct conduct * conduit){
 
 }
 
+int lectCap(int capacity,int posEcr,int posLect,int loop){
+  int lect_cap;
+  if(loop==0)
+      lect_cap = posEcr-posLect;
+    else
+      lect_cap = capacity-posLect+posEcr;
+  return lect_cap;
+}
+
+int min(int a,int b){
+  if(a<b)
+    return a;
+  else return b;
+}
+ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
+   pthread_mutex_lock(&conduit->mutex);
+    if(conduit->eof)
+        return 0;
+    int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->capacity,conduit->loop);
+    
+    while(lect_cap <=0){
+          printf("en attente de lire\n");
+       pthread_cond_wait(&conduit->cond,&conduit->mutex);
+        if(conduit->eof){
+            pthread_mutex_unlock(&conduit->mutex);
+            errno = EPIPE;
+            return -1;
+        }
+       lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->capacity,conduit->loop);
+    }
+    int totLect = min(lect_cap,count);
+    if(conduit->loop==0 || conduit->lecture+totLect <= conduit->capacity){
+      strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
+      conduit->lecture += totLect;
+    }
+    else{
+      int lect1 = conduit->capacity-totLect;
+      strncat(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
+      conduit->loop=0;
+      int lect2 = totLect-lect1;
+      strncat(buff, (&(conduit->buffer_begin)), lect2);
+      conduit->lecture = lect2;
+    }
+    pthread_cond_broadcast(&conduit->cond);
+    pthread_mutex_unlock(&conduit->mutex);
+    return totLect;   
+}
+
+ssize_t conduct_write(struct conduct *conduit,const void* buff,size_t count){
+  printf("avant d'écrire\n");
+  pthread_mutex_lock(&conduit->mutex);
+  if(conduit->eof){
+    pthread_mutex_unlock(&conduit->mutex);
+    errno = EPIPE;
+    return -1;
+  }
+  int ecritureCap= conduit->capacity - lectCap(conduit->capacity,conduit->remplissage,conduit->capacity,conduit->loop);
+      int totEcr;
+  if(count >conduit->atomic)
+    totEcr = min(ecritureCap,count);
+  else
+    totEcr = count;
+  while(ecritureCap<=0 || totEcr > ecritureCap){
+    printf("en attente d'ecrire\n");
+    pthread_cond_wait(&conduit->cond,&conduit->mutex);
+    if(conduit->eof){
+            pthread_mutex_unlock(&conduit->mutex);
+            errno = EPIPE;
+            return -1;
+    }
+    ecritureCap= conduit->capacity - lectCap(conduit->capacity,conduit->remplissage,conduit->capacity,conduit->loop);
+    if(count >conduit->atomic)
+      totEcr = min(ecritureCap,count);
+    else
+      totEcr = count;
+  }
+  if(totEcr+conduit->remplissage <= conduit->capacity){
+    strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff,totEcr);
+    conduit->remplissage +=totEcr;
+  }
+  else{
+    int ecr1 = conduit->capacity - totEcr;
+    if(ecr1 !=0)
+      strncpy(&(conduit->buffer_begin)+conduit->remplissage, buff,ecr1);
+    int ecr2 = totEcr-ecr1;
+    conduit->loop = 1;
+    strncpy(&(conduit->buffer_begin),buff+ecr1,ecr2);
+  }
+    pthread_cond_broadcast(&conduit->cond);
+    pthread_mutex_unlock(&conduit->mutex);
+    printf("bien écrit\n");
+    return totEcr;
+}
+
+  
+/*
 ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
 
     pthread_mutex_lock(&conduit->mutex);
@@ -165,8 +261,8 @@ ssize_t conduct_read(struct conduct * conduit, void * buff, size_t count){
     pthread_mutex_unlock(&conduit->mutex);
     return lecture;
 }
-
-
+*/
+/*
 ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count){
     pthread_mutex_lock(&conduit->mutex);
     if(conduit->eof){
@@ -280,4 +376,4 @@ ssize_t conduct_write(struct conduct * conduit, const void * buff, size_t count)
     pthread_cond_broadcast(&conduit->cond);
     pthread_mutex_unlock(&conduit->mutex);
     return ecriture;
-}
+    }*/

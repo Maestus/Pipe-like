@@ -1,8 +1,5 @@
 all:
 	make conduct
-	make main1
-	make main2
-	make main3
 	make julia
 
 conduct: conduct.h conduct.c
