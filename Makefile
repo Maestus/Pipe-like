@@ -4,6 +4,7 @@ all:
 	make main2
 	make main3
 	make julia
+	make -C Examples
 
 conduct: conduct.h conduct.c
 	gcc -g -Wall -c conduct.h conduct.c -c
@@ -21,7 +22,5 @@ julia:
 	gcc -g -O3 -ffast-math -Wall -pthread `pkg-config --cflags gtk+-3.0` julia.c conduct.c `pkg-config --libs gtk+-3.0` -lm
 
 clean:
-	rm *.o
-	rm *.gch
-	rm a.out
 	find . -maxdepth 1 -type f  ! -name "*.c" ! -name "*.h" ! -name "Makefile" -delete
+	make clean -C Examples
