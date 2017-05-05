@@ -11,6 +11,13 @@ GtkWidget *window;
 GtkWidget *grid;
 GtkWidget *Lecture, *Ecriture, *Transfert;
 
+int capacite = 600;
+int atomicite = 6;
+int echange = 100;
+
+int work_done = 0;
+int work_start = 0;
+
 char * source;
 char * destination;
 
@@ -55,6 +62,7 @@ static void openfc(GtkButton *button, gpointer user_data){
 
 void * read_source(void *arg){
 
+  work_start = 1;
   struct data flux = *(struct data *) arg;
   int f_source;
   struct stat st;
@@ -64,16 +72,18 @@ void * read_source(void *arg){
 
   fstat(f_source, &st);
 
+  printf("Taille du fichier à transférer : %ld octects\n", st.st_size);
+
   char * size_file = malloc(10);
   sprintf(size_file, "%ld", st.st_size);
   conduct_write(flux.conduit, size_file, 10);
 
   int nread = 0;
-  void * buffer = malloc(100);
+  void * buffer = malloc(echange);
 
-  while ((nread = read(f_source, buffer, 100)) > 0) {
+  while ((nread = read(f_source, buffer, echange)) > 0) {
     conduct_write(flux.conduit, buffer, nread);
-    buffer = malloc(100);
+    buffer = malloc(echange);
   }
   conduct_write_eof(flux.conduit);
 
@@ -103,8 +113,8 @@ void * write_destination(void *arg){
   void * buffer;
 
   do {
-    buffer = malloc(100);
-    nread = conduct_read(flux.conduit, buffer, 100);
+    buffer = malloc(echange);
+    nread = conduct_read(flux.conduit, buffer, echange);
     if(nread > 0) {
       write(f_destination, buffer, nread);
     }
@@ -115,12 +125,54 @@ void * write_destination(void *arg){
 }
 
 
+void * init_timer(void *arg){
+
+  struct timespec start, stop;
+
+  while(work_start == 0){}
+
+  if( clock_gettime( CLOCK_REALTIME, &start) == -1 ) {
+      perror("clock");
+      exit(1);
+  }
+
+  work_start = 0;
+
+  while (work_done == 0) {}
+
+  if( clock_gettime( CLOCK_REALTIME, &stop) == -1 ) {
+      perror("clock");
+      exit(1);
+  }
+
+  work_done = 0;
+
+  printf("Transfert fini en %lf secondes\n", ( stop.tv_sec - start.tv_sec ) + (stop.tv_nsec - start.tv_nsec )/1.0e9);
+
+  return NULL;
+}
+
+
 static void worker(GtkButton *button, gpointer user_data) {
 
   struct data flux;
-  flux.conduit = conduct_create(NULL, 6, 600);
-  printf("%ld\n", flux.conduit->capacity);
-  pthread_t reader, writer;
+  flux.conduit = conduct_create(NULL, atomicite, capacite);
+
+  if(flux.conduit == NULL){
+    printf("%s\n", strerror(errno));
+    exit(1);
+  }
+
+  printf("Conduit construit !\n");
+  printf("Capacité : %ld\n", flux.conduit->capacity);
+  printf("Atomicité : %ld\n", flux.conduit->atomic);
+
+  pthread_t reader, writer, time_seeker;
+
+  if(pthread_create(&time_seeker, NULL, init_timer, NULL)){
+    fprintf(stderr,"Erreur");
+    exit(1);
+  }
 
   if(pthread_create(&reader, NULL, read_source, &flux)){
 		fprintf(stderr,"Erreur");
@@ -134,11 +186,25 @@ static void worker(GtkButton *button, gpointer user_data) {
 
   pthread_join(reader, NULL);
   pthread_join(writer, NULL);
+  work_done = 1;
+  pthread_join(time_seeker, NULL);
 }
 
 int main(int argc, char **argv){
 
   gtk_init(&argc, &argv);
+
+  if(argc == 2 && (capacite = atoi(argv[1])) < 0){
+    return 1;
+  }
+
+  if(argc == 3 && (capacite = atoi(argv[1])) < 0 && (atomicite = atoi(argv[2])) < 0){
+    return 1;
+  }
+
+  if(argc == 4 && (capacite = atoi(argv[1])) < 0 && (atomicite = atoi(argv[2])) < 0 && (echange = atoi(argv[3])) < 0){
+    return 1;
+  }
 
   window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
   gtk_window_set_default_size(GTK_WINDOW(window), 400, 100);
