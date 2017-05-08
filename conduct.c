@@ -123,6 +123,7 @@ int min(int a,int b){
         return a;
     else return b;
 }
+
 ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
     pthread_mutex_lock(&conduit->mutex);
 
@@ -152,7 +153,7 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
     else{
         int lect1 = conduit->capacity-conduit->lecture;
         if(lect1 !=0)
-	  memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
+	       memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
         conduit->loop=0;
         int lect2 = totLect-lect1;
 
@@ -216,21 +217,22 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
     pthread_mutex_unlock(&conduit->mutex);
     return totEcr;
 }
+
 ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
     if(pthread_mutex_trylock(&conduit->mutex)!=EBUSY){
-    
+
     int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
-    
+
     if(lect_cap == 0 && conduit->eof){
         pthread_mutex_unlock(&conduit->mutex);
         errno = EPIPE;
         return 0;
     }
-    
+
     if(lect_cap == 0){
         return 0;
     }
-    
+
     int totLect = min(lect_cap,count);
     if(conduit->loop==0 || ((conduit->lecture+totLect) <= conduit->capacity)){
         memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
@@ -242,7 +244,7 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
             memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
         conduit->loop=0;
         int lect2 = totLect-lect1;
-        
+
         memcpy(buff+lect1, (&(conduit->buffer_begin)), lect2);
         conduit->lecture = lect2;
     }
@@ -253,10 +255,11 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
     else
         return -1;
 }
+
 ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t count){
     if(pthread_mutex_trylock(&conduit->mutex)!=EBUSY){
-    
-    
+
+
     if(conduit->eof){
         pthread_mutex_unlock(&conduit->mutex);
         errno = EPIPE;
@@ -290,4 +293,63 @@ ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t coun
     }
     else
         return -1;
+}
+
+ssize_t conduct_writev(struct conduct *conduit, const struct iovec *iov, int iovent){
+    size_t bytes = 0;
+    for (int i = 0; i < iovent; ++i) {
+        bytes += iov[i].iov_len;
+    }
+
+    void *buffer;
+    if((buffer = (void *) malloc (bytes)) == NULL){
+        errno = ENOMEM;
+        return -1;
+    }
+
+    size_t to_copy = bytes;
+    for (int i = 0; i < iovent; ++i){
+      size_t copy = iov[i].iov_len;
+      memcpy ((buffer+(bytes-to_copy)), (void *) iov[i].iov_base, copy);
+
+      to_copy -= copy;
+      if (to_copy == 0)
+        break;
+    }
+
+  return conduct_write(conduit, buffer, bytes);
+}
+
+ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovent){
+    size_t bytes = 0;
+    for (int i = 0; i < iovent; ++i) {
+        bytes += iov[i].iov_len;
+    }
+
+    void *buffer;
+    if((buffer = (void *) malloc (bytes)) == NULL){
+        errno = ENOMEM;
+        return -1;
+    }
+
+    ssize_t read = conduct_read(conduit, buffer, bytes);
+
+    size_t to_write = read;
+    for (int i = 0; i < iovent; ++i){
+
+      size_t size = iov[i].iov_len;
+
+      if(size > to_write){
+          memcpy ((void *) iov[i].iov_base, (buffer+(read-to_write)), to_write);
+          to_write = 0;
+      } else {
+          memcpy ((void *) iov[i].iov_base, (buffer+(read-to_write)), size);
+          to_write -= size;
+      }
+
+      if (to_write == 0)
+        break;
+    }
+
+    return  read;
 }
