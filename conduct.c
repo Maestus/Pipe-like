@@ -216,3 +216,78 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
     pthread_mutex_unlock(&conduit->mutex);
     return totEcr;
 }
+ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
+    if(pthread_mutex_trylock(&conduit->mutex)!=EBUSY){
+    
+    int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
+    
+    if(lect_cap == 0 && conduit->eof){
+        pthread_mutex_unlock(&conduit->mutex);
+        errno = EPIPE;
+        return 0;
+    }
+    
+    if(lect_cap == 0){
+        return 0;
+    }
+    
+    int totLect = min(lect_cap,count);
+    if(conduit->loop==0 || ((conduit->lecture+totLect) <= conduit->capacity)){
+        memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
+        conduit->lecture += totLect;
+    }
+    else{
+        int lect1 = conduit->capacity-conduit->lecture;
+        if(lect1 !=0)
+            memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
+        conduit->loop=0;
+        int lect2 = totLect-lect1;
+        
+        memcpy(buff+lect1, (&(conduit->buffer_begin)), lect2);
+        conduit->lecture = lect2;
+    }
+    pthread_cond_broadcast(&conduit->cond);
+    pthread_mutex_unlock(&conduit->mutex);
+    return totLect;
+    }
+    else
+        return -1;
+}
+ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t count){
+    if(pthread_mutex_trylock(&conduit->mutex)!=EBUSY){
+    
+    
+    if(conduit->eof){
+        pthread_mutex_unlock(&conduit->mutex);
+        errno = EPIPE;
+        return -1;
+    }
+    int ecritureCap= conduit->capacity - lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
+    int totEcr;
+    if(count >conduit->atomic)
+        totEcr = min(ecritureCap,count);
+    else
+        totEcr = count;
+    if(ecritureCap==0 || (totEcr > ecritureCap)){
+        return 0;
+    }
+    if((totEcr+conduit->remplissage) <= conduit->capacity){
+        memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,totEcr);
+        conduit->remplissage +=totEcr;
+    }
+    else{
+        int ecr1 = conduit->capacity - conduit->remplissage;
+        if(ecr1 !=0)
+            memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,ecr1);
+        int ecr2 = totEcr-ecr1;
+        conduit->loop = 1;
+        memcpy(&(conduit->buffer_begin),buff+ecr1,ecr2);
+        conduit->remplissage =ecr2;
+    }
+    pthread_cond_broadcast(&conduit->cond);
+    pthread_mutex_unlock(&conduit->mutex);
+    return totEcr;
+    }
+    else
+        return -1;
+}
