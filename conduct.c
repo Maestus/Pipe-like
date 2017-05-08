@@ -134,9 +134,9 @@ int min(int a,int b){
 }
 
 ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
-    printf("avant le lock\n");
+    //printf("avant le lock\n");
     pthread_mutex_lock(&conduit->mutex);
-    printf("prise du lock\n");
+    //printf("prise du lock\n");
     int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
 
     if(lect_cap == 0 && conduit->eof){
@@ -146,18 +146,18 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
     }
 
     while(lect_cap == 0){
-        printf("en attente\n");
+        //printf("en attente\n");
         pthread_cond_wait(&conduit->cond,&conduit->mutex);
-        printf("sortit de l'attente\n");
+        //printf("sortit de l'attente\n");
         lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
         if(lect_cap == 0 && conduit->eof){
             pthread_mutex_unlock(&conduit->mutex);
             errno = EPIPE;
             return 0;
         }
-        printf("new cap\n");
+        //printf("new cap\n");
     }
-    printf("sortit du while\n");
+    //printf("sortit du while\n");
     int totLect = min(lect_cap,count);
     if(conduit->loop==0 || ((conduit->lecture+totLect) <= conduit->capacity)){
         memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
@@ -173,15 +173,15 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
         memcpy(buff+lect1, (&(conduit->buffer_begin)), lect2);
         conduit->lecture = lect2;
     }
-    printf("broadcat\n");
+    //printf("broadcat\n");
     pthread_cond_broadcast(&conduit->cond);
     pthread_mutex_unlock(&conduit->mutex);
-    printf("unlock\n");
+    //printf("unlock\n");
     return totLect;
 }
 
 ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
-    printf("avant le lock2\n");
+    //printf("avant le lock2\n");
     pthread_mutex_lock(&conduit->mutex);
 
     /****************************************************
@@ -202,10 +202,10 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
     else
         totEcr = count;
     while(ecritureCap==0 || (totEcr > ecritureCap)){
-        printf("wait2\n");
+        //printf("wait2\n");
         pthread_cond_wait(&conduit->cond,&conduit->mutex);
         if(conduit->eof){
-            printf("eof\n");
+            //printf("eof\n");
             pthread_mutex_unlock(&conduit->mutex);
             errno = EPIPE;
             return -1;
@@ -217,7 +217,7 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
         else
             totEcr = count;
     }
-    printf("sortit du while2\n");
+    //printf("sortit du while2\n");
     if((totEcr+conduit->remplissage) <= conduit->capacity){
         memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,totEcr);
         conduit->remplissage +=totEcr;
@@ -231,12 +231,12 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
         memcpy(&(conduit->buffer_begin),buff+ecr1,ecr2);
         conduit->remplissage =ecr2;
     }
-    printf("broadcast2\n");
+    //printf("broadcast2\n");
 
     pthread_cond_broadcast(&conduit->cond);
 
     pthread_mutex_unlock(&conduit->mutex);
-    printf("unlock2\n");
+    //printf("unlock2\n");
 
     return totEcr;
 }
@@ -331,9 +331,9 @@ ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t coun
 
 }*/
 
-ssize_t conduct_writev(struct conduct *conduit, const struct iovec *iov, int iovent){
+ssize_t conduct_writev(struct conduct *conduit, const struct iovec *iov, int iovcnt){
     size_t bytes = 0;
-    for (int i = 0; i < iovent; ++i) {
+    for (int i = 0; i < iovcnt; ++i) {
         bytes += iov[i].iov_len;
     }
 
@@ -344,21 +344,20 @@ ssize_t conduct_writev(struct conduct *conduit, const struct iovec *iov, int iov
     }
 
     size_t to_copy = bytes;
-    for (int i = 0; i < iovent; ++i){
-      size_t copy = iov[i].iov_len;
-      memcpy ((buffer+(bytes-to_copy)), (void *) iov[i].iov_base, copy);
-
+    for (int i = 0; i < iovcnt; ++i){
+      size_t copy = min(iov[i].iov_len, to_copy);
+      memcpy (buffer, (void *) iov[i].iov_base, copy);
       to_copy -= copy;
+      buffer += copy;
       if (to_copy == 0)
         break;
     }
-
-  return conduct_write(conduit, buffer, bytes);
+    return conduct_write(conduit, buffer-bytes, bytes);
 }
 
-ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovent){
+ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovcnt){
     size_t bytes = 0;
-    for (int i = 0; i < iovent; ++i) {
+    for (int i = 0; i < iovcnt; ++i) {
         bytes += iov[i].iov_len;
     }
 
@@ -369,23 +368,15 @@ ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iove
     }
 
     ssize_t read = conduct_read(conduit, buffer, bytes);
-
     size_t to_write = read;
-    for (int i = 0; i < iovent; ++i){
-
-      size_t size = iov[i].iov_len;
-
-      if(size > to_write){
-          memcpy ((void *) iov[i].iov_base, (buffer+(read-to_write)), to_write);
-          to_write = 0;
-      } else {
-          memcpy ((void *) iov[i].iov_base, (buffer+(read-to_write)), size);
-          to_write -= size;
-      }
-
-      if (to_write == 0)
-        break;
+    for (int i = 0; i < iovcnt; ++i){
+        size_t size = min(iov[i].iov_len, to_write);
+        memcpy ((void *) iov[i].iov_base, buffer, size);
+        to_write -= size;
+        buffer += size;
+        if (to_write == 0)
+            break;
     }
-
-    return  read;
+    buffer -= read;
+    return read;
 }

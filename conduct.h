@@ -29,4 +29,5 @@ ssize_t conduct_write(struct conduct *c, const void *buf, size_t count);
 int conduct_write_eof(struct conduct *c);
 void conduct_close(struct conduct *conduct);
 void conduct_destroy(struct conduct *conduct);
-const char * generate_name(const char *);
+ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovcnt);
+ssize_t conduct_writev(struct conduct *conduit, const struct iovec *iov, int iovcnt);
