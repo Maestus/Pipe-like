@@ -7,7 +7,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
-
+#include <sys/uio.h>
 
 struct conduct{
     char name[64];
