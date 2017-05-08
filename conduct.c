@@ -10,13 +10,22 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
 
     struct conduct * conduit = NULL;
     if ( name != NULL) {
+        if(strlen(name) > 64){
+            errno = ENAMETOOLONG;
+            return NULL;
+        }
+        struct passwd *pw = getpwuid(getuid());
+        const char *homedir = pw->pw_dir;
+        printf("%s\n", homedir);
+        char file[128];
+        sprintf(file, "%s/%s", homedir, name);
         int fd;
-        if( access( name, F_OK ) != -1 ){
+        if( access( file, F_OK ) != -1 ){
             errno = EEXIST;
             return NULL;
         }
 
-        if((fd = open(name, O_CREAT | O_RDWR, 0666)) == -1){
+        if((fd = open(file, O_CREAT | O_RDWR, 0666)) == -1){
             return NULL;
         }
 
@@ -28,13 +37,7 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
             return NULL;
         }
 
-        if(strlen(name) > 64){
-            errno = ENAMETOOLONG;
-            return NULL;
-        } else {
-            strncpy(conduit->name, name, 64);
-            printf("conduct %s\n",conduit->name);
-        }
+        strncpy(conduit->name, name, 64);
 
     } else {
         if ((conduit = (struct conduct *) mmap(NULL, sizeof(struct conduct)+c, PROT_WRITE | PROT_READ, MAP_SHARED | MAP_ANONYMOUS, -1, 0)) ==  (void *) -1){
@@ -69,8 +72,11 @@ struct conduct *conduct_open(const char *name){
     int fd;
     struct conduct * conduit;
     struct stat st;
-
-    if((fd = open(name, O_RDWR, 0666)) == -1){
+    struct passwd *pw = getpwuid(getuid());
+    const char *homedir = pw->pw_dir;
+    char file[128];
+    sprintf(file, "%s/%s", homedir, name);
+    if((fd = open(file, O_RDWR, 0666)) == -1){
         return NULL;
     }
 

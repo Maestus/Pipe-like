@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/uio.h>
+#include <pwd.h>
 
 struct conduct{
     char name[64];
