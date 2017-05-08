@@ -33,6 +33,7 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
             return NULL;
         } else {
             strncpy(conduit->name, name, 64);
+            printf("conduct %s\n",conduit->name);
         }
 
     } else {
@@ -98,11 +99,19 @@ int conduct_write_eof(struct conduct *conduit){
     return 1;
 }
 
-void conduct_destruct(struct conduct * conduit){
+void conduct_destroy(struct conduct * conduit){
+    if(pthread_cond_destroy(&conduit->cond)>=0)
+        printf("succes\n");
+    else
+        printf("unsuccessfull\n");
+    
+    if(pthread_mutex_destroy(&conduit->mutex)>=0)
+        printf("succes\n");
+    else
+        printf("unsuccessfull\n");
+    unlink(conduit->name);
     msync(conduit, sizeof(conduit), MS_SYNC);
     munmap(conduit, sizeof(conduit));
-    pthread_mutex_destroy(&conduit->mutex);
-    unlink(conduit->name);
 
 }
 
@@ -124,8 +133,9 @@ int min(int a,int b){
     else return b;
 }
 ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
+    printf("avant le lock\n");
     pthread_mutex_lock(&conduit->mutex);
-
+    printf("prise du lock\n");
     int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
 
     if(lect_cap == 0 && conduit->eof){
@@ -133,17 +143,20 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
         errno = EPIPE;
         return 0;
     }
-
+    
     while(lect_cap == 0){
+        printf("en attente\n");
         pthread_cond_wait(&conduit->cond,&conduit->mutex);
+        printf("sortit de l'attente\n");
         lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
         if(lect_cap == 0 && conduit->eof){
             pthread_mutex_unlock(&conduit->mutex);
             errno = EPIPE;
             return 0;
         }
+        printf("new cap\n");
     }
-
+    printf("sortit du while\n");
     int totLect = min(lect_cap,count);
     if(conduit->loop==0 || ((conduit->lecture+totLect) <= conduit->capacity)){
         memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
@@ -159,12 +172,15 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
         memcpy(buff+lect1, (&(conduit->buffer_begin)), lect2);
         conduit->lecture = lect2;
     }
+    printf("broadcat\n");
     pthread_cond_broadcast(&conduit->cond);
     pthread_mutex_unlock(&conduit->mutex);
+    printf("unlock\n");
     return totLect;
 }
 
 ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
+    printf("avant le lock2\n");
     pthread_mutex_lock(&conduit->mutex);
 
     /****************************************************
@@ -185,6 +201,7 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
     else
         totEcr = count;
     while(ecritureCap==0 || (totEcr > ecritureCap)){
+        printf("wait2\n");
         pthread_cond_wait(&conduit->cond,&conduit->mutex);
         if(conduit->eof){
             printf("eof\n");
@@ -199,6 +216,7 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
         else
             totEcr = count;
     }
+    printf("sortit du while2\n");
     if((totEcr+conduit->remplissage) <= conduit->capacity){
         memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,totEcr);
         conduit->remplissage +=totEcr;
@@ -212,8 +230,13 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
         memcpy(&(conduit->buffer_begin),buff+ecr1,ecr2);
         conduit->remplissage =ecr2;
     }
+    printf("broadcast2\n");
+
     pthread_cond_broadcast(&conduit->cond);
+
     pthread_mutex_unlock(&conduit->mutex);
+    printf("unlock2\n");
+
     return totEcr;
 }
 ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
@@ -228,6 +251,7 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
     }
     
     if(lect_cap == 0){
+        errno = EWOULDBLOCK;
         return 0;
     }
     
@@ -251,6 +275,7 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
     return totLect;
     }
     else
+        errno = EWOULDBLOCK;
         return -1;
 }
 ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t count){
@@ -269,7 +294,8 @@ ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t coun
     else
         totEcr = count;
     if(ecritureCap==0 || (totEcr > ecritureCap)){
-        return 0;
+        errno = EWOULDBLOCK;
+        return -1;
     }
     if((totEcr+conduit->remplissage) <= conduit->capacity){
         memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,totEcr);
@@ -289,5 +315,16 @@ ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t coun
     return totEcr;
     }
     else
+        errno = EWOULDBLOCK;
         return -1;
 }
+/*int stillExist(struct conduct *conduit){
+    if(conduit==NULL)
+        return 0;
+    else if(name != NULL && access(name,F_OK))
+        return 0;
+    else
+        return -1;
+        
+}
+*/

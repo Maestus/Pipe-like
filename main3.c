@@ -10,7 +10,10 @@
 
 int main(int argc, char const *argv[]) {
   struct conduct * conduit = conduct_open("file");
-  conduct_write(conduit, argv[1], strlen(argv[1]));
-
+  while(1){
+    printf("va écrire\n");
+  conduct_write(conduit, "aaa", 3);
+  printf("ecris");
+  }
   return 0;
 }
