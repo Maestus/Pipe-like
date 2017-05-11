@@ -343,22 +343,14 @@ ssize_t conduct_writev(struct conduct *conduit, const struct iovec *iov, int iov
         bytes += iov[i].iov_len;
     }
 
-    void *buffer;
-    if((buffer = (void *) malloc (bytes)) == NULL){
-        errno = ENOMEM;
-        return -1;
-    }
-
     size_t to_copy = bytes;
-    for (int i = 0; i < iovcnt; ++i){
-      size_t copy = min(iov[i].iov_len, to_copy);
-      memcpy (buffer, (void *) iov[i].iov_base, copy);
-      to_copy -= copy;
-      buffer += copy;
-      if (to_copy == 0)
-        break;
+    for (size_t i = 0; i < iovcnt; i++) {
+        for (size_t j = 0; j < iov[i].iov_len; j++) {
+            conduct_write(conduit, iov[i].iov_base+j, 1);
+            to_copy -= 1;
+        }
     }
-    return conduct_write(conduit, buffer-bytes, bytes);
+    return bytes;
 }
 
 ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovcnt){
@@ -367,22 +359,13 @@ ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovc
         bytes += iov[i].iov_len;
     }
 
-    void *buffer;
-    if((buffer = (void *) malloc (bytes)) == NULL){
-        errno = ENOMEM;
-        return -1;
-    }
 
-    ssize_t read = conduct_read(conduit, buffer, bytes);
-    size_t to_write = read;
-    for (int i = 0; i < iovcnt; ++i){
-        size_t size = min(iov[i].iov_len, to_write);
-        memcpy ((void *) iov[i].iov_base, buffer, size);
-        to_write -= size;
-        buffer += size;
-        if (to_write == 0)
-            break;
+    size_t to_read = bytes;
+    for (size_t i = 0; i < iovcnt; i++) {
+        for (size_t j = 0; j < iov[i].iov_len; j++) {
+            conduct_read(conduit, iov[i].iov_base+j, 1);
+            to_read -= 1;
+        }
     }
-    buffer -= read;
-    return read;
+    return bytes;
 }
