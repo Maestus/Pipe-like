@@ -10,7 +10,6 @@
 
 int main(int argc, char const *argv[]) {
   struct conduct * conduit = conduct_open("file");
-  conduct_destroy(conduit);
-  printf("conduit détruit mamen\n");
+  conduct_close(conduit);
   return 0;
 }

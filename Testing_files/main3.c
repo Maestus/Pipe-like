@@ -30,8 +30,7 @@ int main(int argc, char const *argv[]) {
   iov[2].iov_len = strlen(buf2);
 
   iovcnt = sizeof(iov) / sizeof(struct iovec);
-  while(1)
-    printf("J'ai ecris : %ld\n", conduct_writev(conduit, iov, iovcnt));
+  printf("J'ai ecris : %ld\n", conduct_writev(conduit, iov, iovcnt));
 
   return 0;
 }

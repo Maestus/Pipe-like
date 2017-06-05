@@ -9,18 +9,23 @@
 #include <unistd.h>
 
 int main(int argc, char const *argv[]) {
-  struct conduct * conduit = conduct_create("file", 5, 100);
-  if(conduit == NULL) {
+  struct conduct * conduit;
+  if((conduit = conduct_create("file", 5, 100)) == NULL){
+    perror("main1 creation");
+    exit(1);
+  }
+  conduct_close(conduit);
+  /*if(conduit == NULL) {
     printf("%s\n", strerror(errno));
   } else {
-    /*while(1){
+    --while(1){
       sleep(1);
         printf("Remplissage = %d\n", conduit->remplissage);
         printf("Lecture = %d\n", conduit->lecture);
         char * buff = malloc(conduit->capacity*sizeof(char));
         printf("j'ai lu : %ld",conduct_read(conduit, buff, 20));
         printf("[%s]\n", buff);
-    }*/
+    }--
     int iovcnt;
     struct iovec iov[3];
 
@@ -56,6 +61,6 @@ int main(int argc, char const *argv[]) {
       free(iov[2].iov_base);
       sleep(1);
     }
-  }
+  }*/
   return 0;
 }

@@ -9,21 +9,25 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
     }
 
     struct conduct * conduit = NULL;
-    if ( name != NULL) {
+
+    if (name != NULL) {
+
         if(strlen(name) > 64){
-            errno = ENAMETOOLONG;
-            return NULL;
+          errno = ENAMETOOLONG;
+          return NULL;
         }
+
         struct passwd *pw = getpwuid(getuid());
         const char *homedir = pw->pw_dir;
-        char file[128];
-        sprintf(file, "%s/%s", homedir, name);
-        int fd;
-        if( access( file, F_OK ) != -1 ){
+        char file[64];
+        snprintf(file, 64, "%s/%s", homedir, name);
+
+        if(access( file, F_OK ) != -1){
             errno = EEXIST;
             return NULL;
         }
 
+        int fd;
         if((fd = open(file, O_CREAT | O_RDWR, 0666)) == -1){
             return NULL;
         }
@@ -32,14 +36,15 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
             return NULL;
         }
 
-        if ((conduit = (struct conduct *) mmap(NULL, sizeof(struct conduct)+c, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0)) ==  (void *) -1){
+        if ((conduit = (struct conduct *) mmap(NULL, sizeof(struct conduct)+c, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED){
             return NULL;
         }
 
+        close(fd);
         strncpy(conduit->name, file, 64);
 
     } else {
-        if ((conduit = (struct conduct *) mmap(NULL, sizeof(struct conduct)+c, PROT_WRITE | PROT_READ, MAP_SHARED | MAP_ANONYMOUS, -1, 0)) ==  (void *) -1){
+        if ((conduit = (struct conduct *) mmap(NULL, sizeof(struct conduct)+c, PROT_WRITE | PROT_READ, MAP_SHARED | MAP_ANONYMOUS, -1, 0)) == MAP_FAILED){
             return NULL;
         }
     }
@@ -51,12 +56,24 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
     /*initializing mutex*/
     pthread_mutexattr_t mutShared;
     pthread_condattr_t condShared;
-    pthread_mutexattr_init(&mutShared);
+    if(pthread_mutexattr_init(&mutShared) != 0){
+      perror("create conduct mutexattr init");
+      exit(1);
+    }
     pthread_mutexattr_setpshared(&mutShared, PTHREAD_PROCESS_SHARED);
-    pthread_condattr_init(&condShared);
+    if(pthread_condattr_init(&condShared) != 0){
+      perror("create conduct condattr init");
+      exit(1);
+    }
     pthread_condattr_setpshared(&condShared, PTHREAD_PROCESS_SHARED);
-    pthread_mutex_init(&conduit->mutex,&mutShared);
-    pthread_cond_init(&conduit->cond,&condShared);
+    if(pthread_mutex_init(&conduit->mutex,&mutShared) != 0){
+      perror("create conduct mutex init");
+      exit(1);
+    }
+    if(pthread_cond_init(&conduit->cond,&condShared) != 0){
+      perror("create conduct cond init");
+      exit(1);
+    }
 
     /*intializing offset*/
     conduit->lecture = 0;
@@ -73,53 +90,81 @@ struct conduct *conduct_open(const char *name){
     struct stat st;
     struct passwd *pw = getpwuid(getuid());
     const char *homedir = pw->pw_dir;
-    char file[128];
+    char file[64];
     sprintf(file, "%s/%s", homedir, name);
     if((fd = open(file, O_RDWR, 0666)) == -1){
-        return NULL;
+      perror("conduct_open");
+      return NULL;
     }
 
     if(fstat(fd, &st) == -1){
-        return NULL;
+      return NULL;
     }
 
     if ((conduit =(struct conduct *) mmap(NULL, st.st_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0)) ==  (void *) -1){
-        return NULL;
+      return NULL;
     }
 
+    close(fd);
     return conduit;
 }
 
 void conduct_close(struct conduct * conduit){
-    msync(conduit, sizeof(conduit), MS_SYNC);
-    munmap(conduit, sizeof(conduit));
+    if(msync(conduit, sizeof(struct conduct) + conduit->capacity, MS_SYNC) == -1){
+      perror("close conduct msync");
+      exit(1);
+    }
+    if(munmap(conduit, sizeof(struct conduct) + conduit->capacity) == -1){
+      perror("close conduct munmap");
+      exit(1);
+    }
 }
 
 int conduct_write_eof(struct conduct *conduit){
-    pthread_mutex_lock(&conduit->mutex);
+    if(pthread_mutex_lock(&conduit->mutex) != 0){
+      perror("write oef conduct lock");
+      exit(1);
+    }
     conduit->eof = 1;
-    pthread_cond_broadcast(&conduit->cond);
-    pthread_mutex_unlock(&conduit->mutex);
+    if(pthread_cond_broadcast(&conduit->cond) != 0){
+      perror("write eof conduct broadcast");
+      exit(1);
+    }
+    if(pthread_mutex_unlock(&conduit->mutex) != 0){
+      perror("write oef conduct unlock");
+      exit(1);
+    }
 
     return 1;
 }
 
 void conduct_destroy(struct conduct * conduit){
-    if(pthread_cond_destroy(&conduit->cond)>=0)
-        printf("succes\n");
-    else
-        printf("unsuccessfull\n");
-
-    if(pthread_mutex_destroy(&conduit->mutex)>=0)
-        printf("succes\n");
-    else
-        printf("unsuccessfull\n");
-    if(conduit->name != NULL){
-      unlink(conduit->name);
+    if(pthread_cond_destroy(&conduit->cond) != 0){
+      perror("destruct conduct cond");
+      exit(1);
     }
-    msync(conduit, sizeof(conduit), MS_SYNC);
-    munmap(conduit, sizeof(conduit));
 
+    if(pthread_mutex_destroy(&conduit->mutex) != 0){
+      perror("destruct conduct mutex");
+      exit(1);
+    }
+
+    if(msync(conduit, sizeof(struct conduct) + conduit->capacity, MS_SYNC) == -1){
+      perror("destruct conduct msync");
+      exit(1);
+    }
+
+    if(conduit->name != NULL){
+      if(unlink(conduit->name) == -1){
+        perror("unlink");
+        exit(1);
+      }
+    }
+    
+    if(munmap(conduit, sizeof(struct conduct) + conduit->capacity) == -1){
+      perror("destruct conduct munmap");
+      exit(1);
+    }
 }
 
 int lectCap(int capacity,int posEcr,int posLect,int loop){
@@ -141,36 +186,44 @@ int min(int a,int b){
 }
 
 ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
-    //printf("avant le lock\n");
-    pthread_mutex_lock(&conduit->mutex);
-    //printf("prise du lock\n");
+
+    if(pthread_mutex_lock(&conduit->mutex) != 0){
+      perror("read conduct mutex lock");
+      exit(1);
+    }
+
     int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
 
     if(lect_cap == 0 && conduit->eof){
-        pthread_mutex_unlock(&conduit->mutex);
+        if(pthread_mutex_unlock(&conduit->mutex) != 0){
+          perror("read eof conduct mutex unlock first check");
+          exit(1);
+        }
         errno = EPIPE;
         return 0;
     }
 
     while(lect_cap == 0){
-        //printf("en attente\n");
-        pthread_cond_wait(&conduit->cond,&conduit->mutex);
-        //printf("sortit de l'attente\n");
+        if(pthread_cond_wait(&conduit->cond,&conduit->mutex) != 0){
+          perror("read conduct cond wait");
+          exit(1);
+        }
         lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
         if(lect_cap == 0 && conduit->eof){
-            pthread_mutex_unlock(&conduit->mutex);
+            if(pthread_mutex_unlock(&conduit->mutex) != 0){
+              perror("read eof conduct mutex unlock second check");
+              exit(1);
+            }
             errno = EPIPE;
             return 0;
         }
-        //printf("new cap\n");
     }
-    //printf("sortit du while\n");
+
     int totLect = min(lect_cap,count);
     if(conduit->loop==0 || ((conduit->lecture+totLect) <= conduit->capacity)){
         memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
         conduit->lecture += totLect;
-    }
-    else{
+    } else {
         int lect1 = conduit->capacity-conduit->lecture;
         if(lect1 !=0)
 	       memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
@@ -180,28 +233,36 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
         memcpy(buff+lect1, (&(conduit->buffer_begin)), lect2);
         conduit->lecture = lect2;
     }
-    //printf("broadcat\n");
-    pthread_cond_broadcast(&conduit->cond);
-    pthread_mutex_unlock(&conduit->mutex);
-    //printf("unlock\n");
+
+    if(pthread_cond_broadcast(&conduit->cond) != 0){
+      perror("read conduct broadcast");
+      exit(1);
+    }
+
+    if(pthread_mutex_unlock(&conduit->mutex) != 0){
+      perror("read eof conduct mutex unlock");
+      exit(1);
+    }
+
     return totLect;
 }
 
 ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
-    //printf("avant le lock2\n");
-    pthread_mutex_lock(&conduit->mutex);
 
-    /****************************************************
-    Besoin de trouver un moyen de voir si 'count' et
-    superieur à la taille du buffer 'buff'
-    errno = ENOMEM ?
-    ****************************************************/
+    if(pthread_mutex_lock(&conduit->mutex) != 0){
+      perror("write conduct mutex lock");
+      exit(1);
+    }
 
     if(conduit->eof){
-        pthread_mutex_unlock(&conduit->mutex);
+        if(pthread_mutex_unlock(&conduit->mutex) != 0){
+          perror("write eof conduct mutex unlock first time");
+          exit(1);
+        }
         errno = EPIPE;
         return -1;
     }
+
     int ecritureCap= conduit->capacity - lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
     int totEcr;
     if(count >conduit->atomic)
@@ -209,12 +270,15 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
     else
         totEcr = count;
     while(ecritureCap==0 || (totEcr > ecritureCap)){
-        printf("wait2\n");
-        if(pthread_cond_wait(&conduit->cond,&conduit->mutex)==EINVAL)
-	  printf("problème mamene\n");
+        if(pthread_cond_wait(&conduit->cond,&conduit->mutex) != 0){
+          perror("write conduct cond wait");
+          exit(1);
+        }
         if(conduit->eof){
-            //printf("eof\n");
-            pthread_mutex_unlock(&conduit->mutex);
+            if(pthread_mutex_unlock(&conduit->mutex) != 0){
+              perror("write eof conduct mutex unlock second time");
+              exit(1);
+            }
             errno = EPIPE;
             return -1;
         }
@@ -225,7 +289,6 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
         else
             totEcr = count;
     }
-    //printf("sortit du while2\n");
     if((totEcr+conduit->remplissage) <= conduit->capacity){
         memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,totEcr);
         conduit->remplissage +=totEcr;
@@ -239,23 +302,33 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
         memcpy(&(conduit->buffer_begin),buff+ecr1,ecr2);
         conduit->remplissage =ecr2;
     }
-    //printf("broadcast2\n");
 
-    pthread_cond_broadcast(&conduit->cond);
+    if(pthread_cond_broadcast(&conduit->cond) != 0){
+      perror("write conduct broadcast");
+      exit(1);
+    }
 
-    pthread_mutex_unlock(&conduit->mutex);
-    //printf("unlock2\n");
+    if(pthread_mutex_unlock(&conduit->mutex) != 0){
+      perror("write conduct mutex unlock");
+      exit(1);
+    }
 
     return totEcr;
 }
 
 ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
-    if(pthread_mutex_trylock(&conduit->mutex)!=EBUSY){
+    if(pthread_mutex_trylock(&conduit->mutex) == EBUSY){
+      errno = EWOULDBLOCK;
+      return -1;
+    }
 
     int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
 
     if(lect_cap == 0 && conduit->eof){
-        pthread_mutex_unlock(&conduit->mutex);
+        if(pthread_mutex_unlock(&conduit->mutex) != 0){
+          perror("try read eof conduct mutex unlock");
+          exit(1);
+        }
         errno = EPIPE;
         return 0;
     }
@@ -269,8 +342,7 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
     if(conduit->loop==0 || ((conduit->lecture+totLect) <= conduit->capacity)){
         memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), totLect);
         conduit->lecture += totLect;
-    }
-    else{
+    } else {
         int lect1 = conduit->capacity-conduit->lecture;
         if(lect1 !=0)
             memcpy(buff, (&(conduit->buffer_begin)+conduit->lecture), lect1);
@@ -280,39 +352,52 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
         memcpy(buff+lect1, (&(conduit->buffer_begin)), lect2);
         conduit->lecture = lect2;
     }
-    pthread_cond_broadcast(&conduit->cond);
-    pthread_mutex_unlock(&conduit->mutex);
-    return totLect;
+
+    if(pthread_cond_broadcast(&conduit->cond) != 0){
+      perror("try read conduct broadcast");
+      exit(1);
     }
-    else
-        errno = EWOULDBLOCK;
-        return -1;
+
+    if(pthread_mutex_unlock(&conduit->mutex) != 0){
+      perror("try read conduct mutex unlock");
+      exit(1);
+    }
+
+    return totLect;
 }
 
 ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t count){
-    if(pthread_mutex_trylock(&conduit->mutex)!=EBUSY){
-
+    if(pthread_mutex_trylock(&conduit->mutex) == EBUSY){
+      errno = EWOULDBLOCK;
+      return -1;
+    }
 
     if(conduit->eof){
-        pthread_mutex_unlock(&conduit->mutex);
+        if(pthread_mutex_unlock(&conduit->mutex) != 0){
+          perror("try write eof conduct mutex unlock");
+          exit(1);
+        }
         errno = EPIPE;
         return -1;
     }
+
     int ecritureCap= conduit->capacity - lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
     int totEcr;
+
     if(count >conduit->atomic)
         totEcr = min(ecritureCap,count);
     else
         totEcr = count;
+
     if(ecritureCap==0 || (totEcr > ecritureCap)){
         errno = EWOULDBLOCK;
         return -1;
     }
+
     if((totEcr+conduit->remplissage) <= conduit->capacity){
         memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,totEcr);
         conduit->remplissage +=totEcr;
-    }
-    else{
+    } else {
         int ecr1 = conduit->capacity - conduit->remplissage;
         if(ecr1 !=0)
             memcpy(&(conduit->buffer_begin)+conduit->remplissage, buff,ecr1);
@@ -321,23 +406,19 @@ ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t coun
         memcpy(&(conduit->buffer_begin),buff+ecr1,ecr2);
         conduit->remplissage =ecr2;
     }
-    pthread_cond_broadcast(&conduit->cond);
-    pthread_mutex_unlock(&conduit->mutex);
-    return totEcr;
-    }
-    else
-        errno = EWOULDBLOCK;
-        return -1;
-}
-/*int stillExist(struct conduct *conduit){
-    if(conduit==NULL)
-        return 0;
-    else if(name != NULL && access(name,F_OK))
-        return 0;
-    else
-        return -1;
 
-}*/
+    if(pthread_cond_broadcast(&conduit->cond) != 0){
+      perror("try write conduct broadcast");
+      exit(1);
+    }
+
+    if(pthread_mutex_unlock(&conduit->mutex) != 0){
+      perror("try write conduct mutex unlock");
+      exit(1);
+    }
+
+    return totEcr;
+}
 
 ssize_t conduct_writev(struct conduct *conduit, const struct iovec *iov, int iovcnt){
     size_t bytes = 0;
