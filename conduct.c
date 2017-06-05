@@ -16,7 +16,6 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
         }
         struct passwd *pw = getpwuid(getuid());
         const char *homedir = pw->pw_dir;
-        printf("%s\n", homedir);
         char file[128];
         sprintf(file, "%s/%s", homedir, name);
         int fd;
@@ -115,6 +114,10 @@ void conduct_destroy(struct conduct * conduit){
         printf("succes\n");
     else
         printf("unsuccessfull\n");
+
+    if(conduit->name != NULL){
+      unlink(conduit->name);
+    }
     msync(conduit, sizeof(conduit), MS_SYNC);
     munmap(conduit, sizeof(conduit));
     unlink(conduit->name);
