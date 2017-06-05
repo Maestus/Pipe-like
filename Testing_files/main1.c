@@ -10,11 +10,22 @@
 
 int main(int argc, char const *argv[]) {
   struct conduct * conduit;
-  if((conduit = conduct_create("file", 5, 100)) == NULL){
+  if((conduit = conduct_create(NULL, 5, 100)) == NULL){
     perror("main1 creation");
     exit(1);
   }
-  conduct_close(conduit);
+
+  void *buf0 = "short string\n";
+  void *read = malloc(7);
+
+  if(fork()){
+    conduct_write(conduit, buf0, 7);
+  } else {
+    conduct_read(conduit, read, 7);
+    printf("%s\n", (char *)read);
+  }
+  //try_conduct_write(conduit, );
+
   /*if(conduit == NULL) {
     printf("%s\n", strerror(errno));
   } else {
