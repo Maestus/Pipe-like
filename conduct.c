@@ -451,7 +451,6 @@ ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovc
         bytes += iov[i].iov_len;
     }
 
-
     size_t to_read = bytes;
     for (size_t i = 0; i < iovcnt; i++) {
         for (size_t j = 0; j < iov[i].iov_len; j++) {
