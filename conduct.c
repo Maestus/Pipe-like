@@ -208,8 +208,9 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
     else
         totEcr = count;
     while(ecritureCap==0 || (totEcr > ecritureCap)){
-        //printf("wait2\n");
-        pthread_cond_wait(&conduit->cond,&conduit->mutex);
+        printf("wait2\n");
+        if(pthread_cond_wait(&conduit->cond,&conduit->mutex)==EINVAL)
+	  printf("problème mamene\n");
         if(conduit->eof){
             //printf("eof\n");
             pthread_mutex_unlock(&conduit->mutex);
