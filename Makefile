@@ -5,6 +5,8 @@ all:
 	make main3
 	make julia
 	make -C Examples
+	make -C Julia_pipe
+	make -C suite_test
 
 conduct: conduct.h conduct.c
 	gcc -g -Wall -c conduct.h conduct.c -c
@@ -24,3 +26,5 @@ julia:
 clean:
 	find . -maxdepth 1 -type f  ! -name "*.c" ! -name "*.h" ! -name "Makefile" -delete
 	make clean -C Examples
+	make clean -C Julia_pipe
+	make clean -C suite_test
