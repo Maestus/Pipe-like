@@ -253,7 +253,9 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
 }
 
 ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
-    if(pthread_mutex_trylock(&conduit->mutex)!=EBUSY){
+    printf("in the function\n");
+    if(pthread_mutex_trylock(&conduit->mutex)!=EBUSY ){
+        printf("in the function2\n");
 
     int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
 
@@ -285,11 +287,15 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
     }
     pthread_cond_broadcast(&conduit->cond);
     pthread_mutex_unlock(&conduit->mutex);
+        printf("in the function3\n");
+
     return totLect;
     }
-    else
+    else{
+        printf("here\n");
         errno = EWOULDBLOCK;
         return -1;
+    }
 }
 
 ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t count){
