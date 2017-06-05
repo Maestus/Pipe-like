@@ -5,7 +5,7 @@
 int discuss(int timer){
   pid_t pid;
   struct conduct *conduit =  conduct_create(NULL,50,100);
-  for(int i=0;i<1;i++){
+  for(int i=0;i<8;i++){
     pid = fork();
     if(pid<0)
       return -1;
@@ -14,14 +14,13 @@ int discuss(int timer){
       break;
     }
   }
-    printf("here1\n");
   if(pid !=0){
     time_t begin ;
     begin = time(NULL);
       char buf[5];
     while(1){
     if(try_conduct_read(conduit,buf,5)>0){
-        printf("buffer fils %s",buf);
+        printf("buffer fils %s\n",buf);
     }
         if(time(NULL)-begin> timer){
             printf("temps écoulé\n");
@@ -30,12 +29,13 @@ int discuss(int timer){
     }
   }
   else{
-      printf("la\n");
+      char * num = malloc(sizeof(int));
+      
+      
       if(conduct_write(conduit,"here\n",5) < 0){
           printf("error\n");
           return -1;
       }
-      printf("sa sors\n");
     return 0;
   }
 }
