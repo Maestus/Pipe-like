@@ -1,4 +1,4 @@
-#include "conduct.h"
+#include "../conduct.h"
 #include <time.h>
 #include <unistd.h>
 
@@ -29,10 +29,9 @@ int discuss(int timer){
     }
   }
   else{
-      char * num = malloc(sizeof(int));
-      
-      
-      if(conduct_write(conduit,"here\n",5) < 0){
+    char * num = malloc(5);
+    sprintf(num,"%u\n", getpid());
+    if(conduct_write(conduit, num, 5) < 0){
           printf("error\n");
           return -1;
       }
