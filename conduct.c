@@ -160,7 +160,7 @@ void conduct_destroy(struct conduct * conduit){
         exit(1);
       }
     }
-    
+
     if(munmap(conduit, sizeof(struct conduct) + conduit->capacity) == -1){
       perror("destruct conduct munmap");
       exit(1);
