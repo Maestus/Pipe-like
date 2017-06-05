@@ -312,7 +312,6 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
       perror("write conduct mutex unlock");
       exit(1);
     }
-
     return totEcr;
 }
 
@@ -335,6 +334,10 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
     }
 
     if(lect_cap == 0){
+        if(pthread_mutex_unlock(&conduit->mutex) != 0){
+            perror("try read eof conduct mutex unlock");
+            exit(1);
+        }
         errno = EWOULDBLOCK;
         return 0;
     }
@@ -393,6 +396,10 @@ ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t coun
 
     if(ecritureCap==0 || (totEcr > ecritureCap)){
         errno = EWOULDBLOCK;
+        if(pthread_mutex_unlock(&conduit->mutex) != 0){
+            perror("try write conduct mutex unlock");
+            exit(1);
+        }
         return -1;
     }
 
