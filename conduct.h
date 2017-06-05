@@ -28,7 +28,7 @@ struct conduct{
 };
 
 /** \fn struct conduct *conduct_create (const char *name, size_t a, size_t c)
- *\brief fonction qui crée un conduit 
+ *\brief fonction qui crée un conduit
  *\param name chaine de charactère contenant le nom du conduit, null si c'est un conduit anonyme
  *\param a taille du conduit
  *\param c atomicité du conduit doit être inférieur à a
@@ -102,5 +102,21 @@ void conduct_close(struct conduct *conduct);
  *\return void
  */
 void conduct_destroy(struct conduct *conduct);
+
+/** \fn ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovcnt)
+  *\brief fonction qui lit dans le conduit et place les octects lu dans une structure iovec. Elle utilise conduct_read pour la lecture.
+  *\param conduit le conduit depuis lequel on lit
+  *\param iov la structure dans laquelle on écrit les données lu depuis le conduit
+  *\param iovent la taille de la structure iovec
+  *\return Le nombre d'octets écrit
+  */
 ssize_t conduct_readv(struct conduct *conduit, const struct iovec *iov, int iovcnt);
+
+/** \fn conduct_writev(struct conduct *conduit, const struct iovec *iov, int iovcnt)
+  *\brief fonction qui ecrit un structure iovec dans le conduit. Elle fait appel à conduct_write. 
+  *\param conduit le conduit dans lequel on écrit
+  *\param iov la structure à ecrire dans le conduit
+  *\param iovent la taille de la structure iovec
+  *\return Le nombre d'octets écrit
+  */
 ssize_t conduct_writev(struct conduct *conduit, const struct iovec *iov, int iovcnt);
