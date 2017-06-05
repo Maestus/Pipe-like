@@ -37,7 +37,7 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
             return NULL;
         }
 
-        strncpy(conduit->name, name, 64);
+        strncpy(conduit->name, file, 64);
 
     } else {
         if ((conduit = (struct conduct *) mmap(NULL, sizeof(struct conduct)+c, PROT_WRITE | PROT_READ, MAP_SHARED | MAP_ANONYMOUS, -1, 0)) ==  (void *) -1){
@@ -115,9 +115,10 @@ void conduct_destroy(struct conduct * conduit){
         printf("succes\n");
     else
         printf("unsuccessfull\n");
-    unlink(conduit->name);
     msync(conduit, sizeof(conduit), MS_SYNC);
     munmap(conduit, sizeof(conduit));
+    unlink(conduit->name);
+
 
 }
 
