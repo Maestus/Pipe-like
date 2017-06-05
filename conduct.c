@@ -58,21 +58,21 @@ struct conduct *conduct_create(const char *name, size_t a, size_t c){
     pthread_condattr_t condShared;
     if(pthread_mutexattr_init(&mutShared) != 0){
       perror("create conduct mutexattr init");
-      exit(1);
+      return NULL;
     }
     pthread_mutexattr_setpshared(&mutShared, PTHREAD_PROCESS_SHARED);
     if(pthread_condattr_init(&condShared) != 0){
       perror("create conduct condattr init");
-      exit(1);
+      return NULL;
     }
     pthread_condattr_setpshared(&condShared, PTHREAD_PROCESS_SHARED);
     if(pthread_mutex_init(&conduit->mutex,&mutShared) != 0){
       perror("create conduct mutex init");
-      exit(1);
+      return NULL;
     }
     if(pthread_cond_init(&conduit->cond,&condShared) != 0){
       perror("create conduct cond init");
-      exit(1);
+      return NULL;
     }
 
     /*intializing offset*/
@@ -123,16 +123,16 @@ void conduct_close(struct conduct * conduit){
 int conduct_write_eof(struct conduct *conduit){
     if(pthread_mutex_lock(&conduit->mutex) != 0){
       perror("write oef conduct lock");
-      exit(1);
+      return -1;
     }
     conduit->eof = 1;
     if(pthread_cond_broadcast(&conduit->cond) != 0){
       perror("write eof conduct broadcast");
-      exit(1);
+      return -1;
     }
     if(pthread_mutex_unlock(&conduit->mutex) != 0){
       perror("write oef conduct unlock");
-      exit(1);
+      return -1;
     }
 
     return 1;
@@ -189,7 +189,7 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
 
     if(pthread_mutex_lock(&conduit->mutex) != 0){
       perror("read conduct mutex lock");
-      exit(1);
+      return -1;
     }
 
     int lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
@@ -197,7 +197,7 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
     if(lect_cap == 0 && conduit->eof){
         if(pthread_mutex_unlock(&conduit->mutex) != 0){
           perror("read eof conduct mutex unlock first check");
-          exit(1);
+          return -1;
         }
         errno = EPIPE;
         return 0;
@@ -206,13 +206,13 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
     while(lect_cap == 0){
         if(pthread_cond_wait(&conduit->cond,&conduit->mutex) != 0){
           perror("read conduct cond wait");
-          exit(1);
+          return -1;
         }
         lect_cap = lectCap(conduit->capacity,conduit->remplissage,conduit->lecture,conduit->loop);
         if(lect_cap == 0 && conduit->eof){
             if(pthread_mutex_unlock(&conduit->mutex) != 0){
               perror("read eof conduct mutex unlock second check");
-              exit(1);
+              return -1;
             }
             errno = EPIPE;
             return 0;
@@ -236,12 +236,12 @@ ssize_t conduct_read(struct conduct* conduit,void * buff,size_t count){
 
     if(pthread_cond_broadcast(&conduit->cond) != 0){
       perror("read conduct broadcast");
-      exit(1);
+      return -1;
     }
 
     if(pthread_mutex_unlock(&conduit->mutex) != 0){
       perror("read eof conduct mutex unlock");
-      exit(1);
+      return -1;
     }
 
     return totLect;
@@ -251,13 +251,13 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
 
     if(pthread_mutex_lock(&conduit->mutex) != 0){
       perror("write conduct mutex lock");
-      exit(1);
+      return -1;
     }
 
     if(conduit->eof){
         if(pthread_mutex_unlock(&conduit->mutex) != 0){
           perror("write eof conduct mutex unlock first time");
-          exit(1);
+          return -1;
         }
         errno = EPIPE;
         return -1;
@@ -272,12 +272,12 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
     while(ecritureCap==0 || (totEcr > ecritureCap)){
         if(pthread_cond_wait(&conduit->cond,&conduit->mutex) != 0){
           perror("write conduct cond wait");
-          exit(1);
+          return -1;
         }
         if(conduit->eof){
             if(pthread_mutex_unlock(&conduit->mutex) != 0){
               perror("write eof conduct mutex unlock second time");
-              exit(1);
+              return -1;
             }
             errno = EPIPE;
             return -1;
@@ -305,12 +305,12 @@ ssize_t conduct_write(struct conduct *conduit, const void* buff, size_t count){
 
     if(pthread_cond_broadcast(&conduit->cond) != 0){
       perror("write conduct broadcast");
-      exit(1);
+      return -1;
     }
 
     if(pthread_mutex_unlock(&conduit->mutex) != 0){
       perror("write conduct mutex unlock");
-      exit(1);
+      return -1;
     }
 
     return totEcr;
@@ -328,7 +328,7 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
     if(lect_cap == 0 && conduit->eof){
         if(pthread_mutex_unlock(&conduit->mutex) != 0){
           perror("try read eof conduct mutex unlock");
-          exit(1);
+          return -1;
         }
         errno = EPIPE;
         return 0;
@@ -357,12 +357,12 @@ ssize_t try_conduct_read(struct conduct* conduit,void * buff,size_t count){
 
     if(pthread_cond_broadcast(&conduit->cond) != 0){
       perror("try read conduct broadcast");
-      exit(1);
+      return -1;
     }
 
     if(pthread_mutex_unlock(&conduit->mutex) != 0){
       perror("try read conduct mutex unlock");
-      exit(1);
+      return -1;
     }
 
     return totLect;
@@ -377,7 +377,7 @@ ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t coun
     if(conduit->eof){
         if(pthread_mutex_unlock(&conduit->mutex) != 0){
           perror("try write eof conduct mutex unlock");
-          exit(1);
+          return -1;
         }
         errno = EPIPE;
         return -1;
@@ -411,12 +411,12 @@ ssize_t try_conduct_write(struct conduct *conduit, const void* buff, size_t coun
 
     if(pthread_cond_broadcast(&conduit->cond) != 0){
       perror("try write conduct broadcast");
-      exit(1);
+      return -1;
     }
 
     if(pthread_mutex_unlock(&conduit->mutex) != 0){
       perror("try write conduct mutex unlock");
-      exit(1);
+      return -1;
     }
 
     return totEcr;
