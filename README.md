@@ -1,14 +1,20 @@
-compilation :
+# Compilation
+```
   make
+```
+# How to use
 
-execution :
-  -Executer julia
-    ./a.out
-
-  -Executer l'exemple de transfert de fichier
-    cd Examples
-    ./transfert [capacite conduit] [atomicite conduit] [octet echange]
-
-  -Executer l'exemple non bloquant
-    cd Examples
-    ./non_bloc
+* ExecRunuter julia
+```
+./a.out
+```
+* Run transfert file program
+```
+cd Examples
+./transfert [capacite conduit] [atomicite conduit] [octet echange]
+```
+* Run non blocking program
+```
+cd Examples
+./non_bloc
+```
